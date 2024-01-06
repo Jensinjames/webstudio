@@ -542,7 +542,7 @@ test("generate collection component as map", () => {
     })
   ).toEqual(
     clear(`
-    {data.map((element, index) =>
+    {data?.map((element: any, index: number) =>
     <Fragment key={index}>
     <Label
     data-ws-id="label"
@@ -560,6 +560,7 @@ test("generate collection component as map", () => {
 test("generate page component with variables and actions", () => {
   expect(
     generatePageComponent({
+      classesMap: new Map(),
       scope: createScope(),
       page: { rootInstanceId: "body" } as Page,
       instances: new Map([
@@ -601,7 +602,8 @@ test("generate page component with variables and actions", () => {
   ).toEqual(
     clear(`
       type Params = Record<string, string | undefined>
-      const Page = (_props: { params: Params }) => {
+      type Resources = Record<string, unknown>
+      const Page = (_props: { params: Params, resources: Resources }) => {
       let [variableName, set$variableName] = useState<any>("initial")
       let onChange = (value: any) => {
       variableName = value
@@ -622,9 +624,43 @@ test("generate page component with variables and actions", () => {
   );
 });
 
+test("add classes and merge classes", () => {
+  expect(
+    generatePageComponent({
+      classesMap: new Map([["body", ["cls1"]]]),
+      scope: createScope(),
+      page: { rootInstanceId: "body" } as Page,
+      instances: new Map([createInstancePair("body", "Body", [])]),
+      dataSources: new Map(),
+      props: new Map([
+        createPropPair({
+          id: "1",
+          instanceId: "body",
+          name: "className",
+          type: "string",
+          value: 'cls2 "cls3"',
+        }),
+      ]),
+      indexesWithinAncestors: new Map(),
+    })
+  ).toEqual(
+    clear(`
+    type Params = Record<string, string | undefined>
+    type Resources = Record<string, unknown>
+    const Page = (_props: { params: Params, resources: Resources }) => {
+    return <Body
+    data-ws-id="body"
+    data-ws-component="Body"
+    className="cls1 cls2 \\"cls3\\"" />
+    }
+    `)
+  );
+});
+
 test("avoid generating collection parameter variable as state", () => {
   expect(
     generatePageComponent({
+      classesMap: new Map(),
       scope: createScope(),
       page: { rootInstanceId: "body" } as Page,
       instances: new Map([
@@ -667,12 +703,13 @@ test("avoid generating collection parameter variable as state", () => {
   ).toEqual(
     clear(`
     type Params = Record<string, string | undefined>
-    const Page = (_props: { params: Params }) => {
+    type Resources = Record<string, unknown>
+    const Page = (_props: { params: Params, resources: Resources }) => {
     let [data, set$data] = useState<any>(["apple","orange","mango"])
     return <Body
     data-ws-id="body"
     data-ws-component="Body">
-    {data.map((element, index) =>
+    {data?.map((element: any, index: number) =>
     <Fragment key={index}>
     </Fragment>
     )}
@@ -685,6 +722,7 @@ test("avoid generating collection parameter variable as state", () => {
 test("generate params variable when present", () => {
   expect(
     generatePageComponent({
+      classesMap: new Map(),
       scope: createScope(["params"]),
       page: { rootInstanceId: "body", pathVariableId: "pathParamsId" } as Page,
       instances: new Map([createInstancePair("body", "Body", [])]),
@@ -710,12 +748,71 @@ test("generate params variable when present", () => {
   ).toEqual(
     clear(`
     type Params = Record<string, string | undefined>
-    const Page = (_props: { params: Params }) => {
+    type Resources = Record<string, unknown>
+    const Page = (_props: { params: Params, resources: Resources }) => {
     let params_1 = _props.params
     return <Body
     data-ws-id="body"
     data-ws-component="Body"
     data-slug={params_1?.slug} />
+    }
+    `)
+  );
+});
+
+test("generate resources loading", () => {
+  expect(
+    generatePageComponent({
+      classesMap: new Map(),
+      scope: createScope(),
+      page: { rootInstanceId: "body" } as Page,
+      instances: new Map([createInstancePair("body", "Body", [])]),
+      dataSources: new Map([
+        createDataSourcePair({
+          id: "dataSourceDataId",
+          scopeInstanceId: "body",
+          type: "variable",
+          name: "data",
+          value: { type: "json", value: "data" },
+        }),
+        createDataSourcePair({
+          id: "dataSourceResourceId",
+          scopeInstanceId: "body",
+          type: "resource",
+          name: "data",
+          resourceId: "resourceId",
+        }),
+      ]),
+      props: new Map([
+        createPropPair({
+          id: "propDataId",
+          instanceId: "body",
+          name: "data-data",
+          type: "expression",
+          value: "$ws$dataSource$dataSourceDataId",
+        }),
+        createPropPair({
+          id: "propResourceId",
+          instanceId: "body",
+          name: "data-resource",
+          type: "expression",
+          value: "$ws$dataSource$dataSourceResourceId",
+        }),
+      ]),
+      indexesWithinAncestors: new Map(),
+    })
+  ).toEqual(
+    clear(`
+    type Params = Record<string, string | undefined>
+    type Resources = Record<string, unknown>
+    const Page = (_props: { params: Params, resources: Resources }) => {
+    let [data, set$data] = useState<any>("data")
+    let data_1: any = _props.resources["data_2"]
+    return <Body
+    data-ws-id="body"
+    data-ws-component="Body"
+    data-data={data}
+    data-resource={data_1} />
     }
     `)
   );

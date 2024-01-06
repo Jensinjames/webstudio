@@ -1,9 +1,9 @@
 /* eslint-disable */
 /* This is a auto generated file for building the project */
 
-import { type ReactNode, useState } from "react";
+import { Fragment, useState } from "react";
 import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, SiteMeta } from "@webstudio-is/sdk";
+import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
 import {
   Body as Body,
   Link as Link,
@@ -53,7 +53,7 @@ export const imageAssets: ImageAsset[] = [
   },
 ];
 export const pageData: PageData = {
-  site: {
+  project: {
     siteName: "KittyGuardedZone",
     faviconAssetId: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
     code: "<script>console.log('KittyGuardedZone')</script>\n",
@@ -78,7 +78,8 @@ export const user: { email: string | null } | undefined = {
 export const projectId = "cddc1d44-af37-4cb6-a430-d300cf6f932d";
 
 type Params = Record<string, string | undefined>;
-const Page = (_props: { params: Params }) => {
+type Resources = Record<string, unknown>;
+const Page = (_props: { params: Params; resources: Resources }) => {
   return (
     <Body data-ws-id="On9cvWCxr5rdZtY9O1Bv0" data-ws-component="Body">
       <Heading data-ws-id="nVMWvMsaLCcb0o1wuNQgg" data-ws-component="Heading">
@@ -163,6 +164,7 @@ export const pagesPaths = new Set([
   "/_route_with_symbols_",
   "/form",
   "/heading-with-id",
+  "/resources",
 ]);
 
 export const formsProperties = new Map<

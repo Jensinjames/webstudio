@@ -1,55 +1,89 @@
-import { Flex, theme, useId, Select, Box } from "@webstudio-is/design-system";
+import { useId } from "react";
+import { useStore } from "@nanostores/react";
+import { Flex, theme, Select } from "@webstudio-is/design-system";
 import { humanizeString } from "~/shared/string-utils";
-import { type ControlProps, getLabel, VerticalLayout, Label } from "../shared";
-import { VariablesButton } from "../variables";
+import { BindingPopover } from "~/builder/shared/binding-popover";
+import {
+  type ControlProps,
+  getLabel,
+  VerticalLayout,
+  Label,
+  $selectedInstanceScope,
+  updateExpressionValue,
+} from "../shared";
 
 export const SelectControl = ({
   meta,
   prop,
   propName,
+  computedValue,
   deletable,
   readOnly,
   onChange,
   onDelete,
-}: ControlProps<"select", "string">) => {
+}: ControlProps<"select">) => {
   const id = useId();
 
+  const value = computedValue === undefined ? undefined : String(computedValue);
   // making sure that the current value is in the list of options
   const options =
-    prop === undefined || meta.options.includes(prop.value) || prop.value === ""
+    value === undefined || value.length === 0 || meta.options.includes(value)
       ? meta.options
-      : [prop.value, ...meta.options];
+      : [value, ...meta.options];
+
+  const label = getLabel(meta, propName);
+  const { scope, aliases } = useStore($selectedInstanceScope);
+  const expression =
+    prop?.type === "expression" ? prop.value : JSON.stringify(computedValue);
 
   return (
     <VerticalLayout
       label={
-        <Box css={{ position: "relative" }}>
-          <Label
-            htmlFor={id}
-            description={meta.description}
-            readOnly={readOnly}
-          >
-            {getLabel(meta, propName)}
-          </Label>
-          <VariablesButton
-            propId={prop?.id}
-            propName={propName}
-            propMeta={meta}
-          />
-        </Box>
+        <Label htmlFor={id} description={meta.description} readOnly={readOnly}>
+          {label}
+        </Label>
       }
       deletable={deletable}
       onDelete={onDelete}
     >
-      <Flex css={{ py: theme.spacing[2] }}>
+      <Flex css={{ position: "relative", py: theme.spacing[2] }}>
         <Select
+          fullWidth
           id={id}
           disabled={readOnly}
-          value={prop?.value}
+          value={value}
           options={options}
           getLabel={humanizeString}
-          onChange={(value) => onChange({ type: "string", value })}
-          fullWidth
+          onChange={(value) => {
+            if (prop?.type === "expression") {
+              updateExpressionValue(prop.value, value);
+            } else {
+              onChange({ type: "string", value });
+            }
+          }}
+        />
+        <BindingPopover
+          scope={scope}
+          aliases={aliases}
+          validate={(value) => {
+            if (
+              value !== undefined &&
+              meta.options.includes(String(value)) === false
+            ) {
+              const formatter = new Intl.ListFormat(undefined, {
+                type: "disjunction",
+              });
+              const options = formatter.format(meta.options);
+              return `${label} expects one of ${options}`;
+            }
+          }}
+          value={expression}
+          onChange={(newExpression) =>
+            onChange({ type: "expression", value: newExpression })
+          }
+          onRemove={(evaluatedValue) =>
+            onChange({ type: "string", value: String(evaluatedValue) })
+          }
         />
       </Flex>
     </VerticalLayout>

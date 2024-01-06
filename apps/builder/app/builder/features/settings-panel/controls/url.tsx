@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useStore } from "@nanostores/react";
 import { computed } from "nanostores";
 import {
@@ -22,22 +22,26 @@ import {
 import type { Instance, Page } from "@webstudio-is/sdk";
 import { findTreeInstanceIds } from "@webstudio-is/sdk";
 import { instancesStore, pagesStore, propsStore } from "~/shared/nano-states";
+import { BindingPopover } from "~/builder/shared/binding-popover";
 import {
   type ControlProps,
   getLabel,
   useLocalValue,
   VerticalLayout,
   Label,
+  updateExpressionValue,
+  $selectedInstanceScope,
 } from "../shared";
 import { SelectAsset } from "./select-asset";
-import { VariablesButton } from "../variables";
 
-type UrlControlProps = ControlProps<"url", "string" | "page" | "asset">;
+type UrlControlProps = ControlProps<"url">;
 
 type BaseControlProps = {
   id: string;
   instanceId: string;
+  readOnly: boolean;
   prop: UrlControlProps["prop"];
+  value: string;
   onChange: UrlControlProps["onChange"];
   onDelete: UrlControlProps["onDelete"];
 };
@@ -79,11 +83,14 @@ const addHttpsIfMissing = (url: string) => {
   return url;
 };
 
-const BaseUrl = ({ prop, onChange, id }: BaseControlProps) => {
-  const localValue = useLocalValue(
-    prop?.type === "string" ? prop.value : "",
-    (value) => onChange({ type: "string", value })
-  );
+const BaseUrl = ({ readOnly, prop, value, onChange, id }: BaseControlProps) => {
+  const localValue = useLocalValue(value, (value) => {
+    if (prop?.type === "expression") {
+      updateExpressionValue(prop.value, value);
+    } else {
+      onChange({ type: "string", value });
+    }
+  });
 
   useEffect(() => {
     return () => localValue.set(addHttpsIfMissing(localValue.value));
@@ -93,6 +100,7 @@ const BaseUrl = ({ prop, onChange, id }: BaseControlProps) => {
   return (
     <Row>
       <InputField
+        disabled={readOnly}
         id={id}
         value={localValue.value}
         placeholder="http://www.url.com"
@@ -113,18 +121,29 @@ const BaseUrl = ({ prop, onChange, id }: BaseControlProps) => {
   );
 };
 
-const BasePhone = ({ prop, onChange, id }: BaseControlProps) => {
+const BasePhone = ({
+  readOnly,
+  prop,
+  value,
+  onChange,
+  id,
+}: BaseControlProps) => {
   const localValue = useLocalValue(
-    prop?.type === "string" && prop.value.startsWith("tel:")
-      ? prop.value.slice(4)
-      : "",
-    (value) => onChange({ type: "string", value: `tel:${value}` })
+    value.startsWith("tel:") ? value.slice(4) : "",
+    (value) => {
+      if (prop?.type === "expression") {
+        updateExpressionValue(prop.value, `tel:${value}`);
+      } else {
+        onChange({ type: "string", value: `tel:${value}` });
+      }
+    }
   );
 
   return (
     <Row>
       <InputField
         id={id}
+        disabled={readOnly}
         value={localValue.value}
         type="tel"
         placeholder="+15555555555"
@@ -141,16 +160,13 @@ const BasePhone = ({ prop, onChange, id }: BaseControlProps) => {
   );
 };
 
-const propToEmail = (prop?: UrlControlProps["prop"]) => {
-  if (prop?.type !== "string") {
-    return { email: "", subject: "" };
-  }
-
+const propToEmail = (value: string) => {
   let url;
   try {
-    url = new URL(prop.value);
-    // eslint-disable-next-line no-empty
-  } catch {}
+    url = new URL(value);
+  } catch {
+    // empty block
+  }
 
   if (url === undefined || url.protocol !== "mailto:") {
     return { email: "", subject: "" };
@@ -162,23 +178,39 @@ const propToEmail = (prop?: UrlControlProps["prop"]) => {
   };
 };
 
-const BaseEmail = ({ prop, onChange, id }: BaseControlProps) => {
-  const localValue = useLocalValue(propToEmail(prop), ({ email, subject }) => {
+const BaseEmail = ({
+  readOnly,
+  prop,
+  value,
+  onChange,
+  id,
+}: BaseControlProps) => {
+  const localValue = useLocalValue(propToEmail(value), ({ email, subject }) => {
     if (email === "") {
-      onChange({ type: "string", value: "" });
+      if (prop?.type === "expression") {
+        updateExpressionValue(prop.value, "");
+      } else {
+        onChange({ type: "string", value: "" });
+      }
       return;
     }
     const url = new URL(`mailto:${email}`);
     if (subject !== "") {
       url.searchParams.set("subject", subject);
     }
-    onChange({ type: "string", value: url.toString() });
+    const value = url.toString();
+    if (prop?.type === "expression") {
+      updateExpressionValue(prop.value, value);
+    } else {
+      onChange({ type: "string", value });
+    }
   });
 
   return (
     <>
       <Row>
         <InputField
+          disabled={readOnly}
           id={id}
           value={localValue.value.email}
           type="email"
@@ -198,6 +230,7 @@ const BaseEmail = ({ prop, onChange, id }: BaseControlProps) => {
       <Row>
         <Label htmlFor={`${id}-subject`}>Subject</Label>
         <InputField
+          disabled={readOnly}
           id={`${id}-subject`}
           value={localValue.value.subject}
           placeholder="You've got mail!"
@@ -360,7 +393,10 @@ const modes = {
 
 type Mode = keyof typeof modes;
 
-const propToMode = (prop?: UrlControlProps["prop"]): Mode => {
+const propToMode = (
+  prop: undefined | UrlControlProps["prop"],
+  value: string
+): Mode => {
   if (prop === undefined) {
     return "url";
   }
@@ -373,11 +409,11 @@ const propToMode = (prop?: UrlControlProps["prop"]): Mode => {
     return "attachment";
   }
 
-  if (prop.value.startsWith("tel:")) {
+  if (value.startsWith("tel:")) {
     return "phone";
   }
 
-  if (prop.value.startsWith("mailto:")) {
+  if (value.startsWith("mailto:")) {
     return "email";
   }
 
@@ -389,29 +425,33 @@ export const UrlControl = ({
   meta,
   prop,
   propName,
+  computedValue,
+  readOnly,
   deletable,
   onChange,
   onDelete,
 }: UrlControlProps) => {
-  const [mode, setMode] = useState<Mode>(propToMode(prop));
+  const value = String(computedValue ?? "");
+  const { value: mode, set: setMode } = useLocalValue<Mode>(
+    propToMode(prop, value),
+    () => {}
+  );
 
   const id = useId();
 
   const BaseControl = modes[mode].control;
 
+  const label = getLabel(meta, propName);
+  const { scope, aliases } = useStore($selectedInstanceScope);
+  const expression =
+    prop?.type === "expression" ? prop.value : JSON.stringify(computedValue);
+
   return (
     <VerticalLayout
       label={
-        <Box css={{ position: "relative" }}>
-          <Label htmlFor={id} description={meta.description}>
-            {getLabel(meta, propName)}
-          </Label>
-          <VariablesButton
-            propId={prop?.id}
-            propName={propName}
-            propMeta={meta}
-          />
-        </Box>
+        <Label htmlFor={id} description={meta.description}>
+          {label}
+        </Label>
       }
       deletable={deletable}
       onDelete={onDelete}
@@ -427,6 +467,7 @@ export const UrlControl = ({
       >
         <ToggleGroup
           type="single"
+          disabled={readOnly}
           value={mode}
           onValueChange={(value) => {
             // too tricky to prove to TS that value is a Mode
@@ -442,13 +483,33 @@ export const UrlControl = ({
         </ToggleGroup>
       </Flex>
 
-      <BaseControl
-        id={id}
-        instanceId={instanceId}
-        prop={prop}
-        onChange={onChange}
-        onDelete={onDelete}
-      />
+      <Box css={{ position: "relative" }}>
+        <BaseControl
+          id={id}
+          instanceId={instanceId}
+          readOnly={readOnly}
+          prop={prop}
+          value={value}
+          onChange={onChange}
+          onDelete={onDelete}
+        />
+        <BindingPopover
+          scope={scope}
+          aliases={aliases}
+          validate={(value) => {
+            if (value !== undefined && typeof value !== "string") {
+              return `${label} expects a string value, page or file`;
+            }
+          }}
+          value={expression}
+          onChange={(newExpression) =>
+            onChange({ type: "expression", value: newExpression })
+          }
+          onRemove={(evaluatedValue) =>
+            onChange({ type: "string", value: String(evaluatedValue) })
+          }
+        />
+      </Box>
     </VerticalLayout>
   );
 };

@@ -1,9 +1,9 @@
 /* eslint-disable */
 /* This is a auto generated file for building the project */
 
-import { type ReactNode, useState } from "react";
+import { Fragment, useState } from "react";
 import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, SiteMeta } from "@webstudio-is/sdk";
+import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
 import { Body as Body } from "@webstudio-is/sdk-components-react-remix";
 import {
   Heading as Heading,
@@ -28,7 +28,8 @@ export const user: { email: string | null } | undefined = {
 export const projectId = "d845c167-ea07-4875-b08d-83e97c09dcce";
 
 type Params = Record<string, string | undefined>;
-const Page = (_props: { params: Params }) => {
+type Resources = Record<string, unknown>;
+const Page = (_props: { params: Params; resources: Resources }) => {
   return (
     <Body data-ws-id="MMimeobf_zi4ZkRGXapju" data-ws-component="Body">
       <Heading data-ws-id="MYDt0guk1-vzc7yzqyN6A" data-ws-component="Heading">

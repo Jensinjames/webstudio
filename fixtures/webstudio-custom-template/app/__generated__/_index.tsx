@@ -1,9 +1,9 @@
 /* eslint-disable */
 /* This is a auto generated file for building the project */
 
-import { type ReactNode, useState } from "react";
+import { Fragment, useState } from "react";
 import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, SiteMeta } from "@webstudio-is/sdk";
+import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
 import { Body as Body } from "@webstudio-is/sdk-components-react-remix";
 import { Heading as Heading } from "@webstudio-is/sdk-components-react";
 
@@ -22,7 +22,7 @@ export const imageAssets: ImageAsset[] = [
   },
 ];
 export const pageData: PageData = {
-  site: {
+  project: {
     siteName: "Fixture Site",
     faviconAssetId: "cd1e9fad-8df1-45c6-800f-05fda2d2469f",
     code: '<script>console.log(\'HELLO\')</script>\n<meta property="saas:test" content="test">',
@@ -44,7 +44,8 @@ export const user: { email: string | null } | undefined = {
 export const projectId = "0d856812-61d8-4014-a20a-82e01c0eb8ee";
 
 type Params = Record<string, string | undefined>;
-const Page = (_props: { params: Params }) => {
+type Resources = Record<string, unknown>;
+const Page = (_props: { params: Params; resources: Resources }) => {
   return (
     <Body data-ws-id="ibXgMoi9_ipHx1gVrvii0" data-ws-component="Body">
       <Heading data-ws-id="7pwqBSgrfuuOfk1JblWcL" data-ws-component="Heading">

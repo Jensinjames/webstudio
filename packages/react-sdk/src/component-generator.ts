@@ -15,11 +15,7 @@ import {
   showAttribute,
 } from "./props";
 import { collectionComponent } from "./core-components";
-import {
-  decodeDataSourceVariable,
-  generateDataSources,
-  validateExpression,
-} from "./expression";
+import { generateExpression, generateDataSources } from "./expression";
 import type { IndexesWithinAncestors } from "./instance-utils";
 
 const generatePropValue = ({
@@ -54,17 +50,10 @@ const generatePropValue = ({
   }
   // inline expression to safely use collection item
   if (prop.type === "expression") {
-    return validateExpression(prop.value, {
-      // transpile to safely executable member expressions
-      optional: true,
-      transformIdentifier: (identifier) => {
-        const depId = decodeDataSourceVariable(identifier);
-        const dep = depId ? dataSources.get(depId) : undefined;
-        if (dep) {
-          return scope.getName(dep.id, dep.name);
-        }
-        return identifier;
-      },
+    return generateExpression({
+      expression: prop.value,
+      dataSources,
+      scope,
     });
   }
   if (prop.type === "action") {
@@ -80,6 +69,7 @@ export const generateJsxElement = ({
   dataSources,
   indexesWithinAncestors,
   children,
+  classesMap,
 }: {
   scope: Scope;
   instance: Instance;
@@ -87,6 +77,7 @@ export const generateJsxElement = ({
   dataSources: DataSources;
   indexesWithinAncestors: IndexesWithinAncestors;
   children: string;
+  classesMap?: Map<string, Array<string>>;
 }) => {
   let generatedProps = "";
 
@@ -103,6 +94,8 @@ export const generateJsxElement = ({
   let conditionValue: undefined | string;
   let collectionDataValue: undefined | string;
   let collectionItemValue: undefined | string;
+
+  const classes = Array.from(classesMap?.get(instance.id) ?? []);
   for (const prop of props.values()) {
     if (prop.instanceId !== instance.id) {
       continue;
@@ -131,9 +124,20 @@ export const generateJsxElement = ({
       }
       continue;
     }
+    // We need to merge atomic classes with user-defined className prop.
+    if (prop.name === "className") {
+      if (prop.type === "string") {
+        classes.push(prop.value);
+      }
+      continue;
+    }
     if (propValue !== undefined) {
       generatedProps += `\n${prop.name}={${propValue}}`;
     }
+  }
+
+  if (classes.length !== 0) {
+    generatedProps += `\nclassName=${JSON.stringify(classes.join(" "))}`;
   }
 
   let generatedElement = "";
@@ -152,7 +156,8 @@ export const generateJsxElement = ({
       return "";
     }
     const indexVariable = scope.getName(`${instance.id}-index`, "index");
-    generatedElement += `{${collectionDataValue}.map((${collectionItemValue}, ${indexVariable}) =>\n`;
+    // fix implicit any error
+    generatedElement += `{${collectionDataValue}?.map((${collectionItemValue}: any, ${indexVariable}: number) =>\n`;
     generatedElement += `<Fragment key={${indexVariable}}>\n`;
     generatedElement += children;
     generatedElement += `</Fragment>\n`;
@@ -183,6 +188,7 @@ export const generateJsxChildren = ({
   props,
   dataSources,
   indexesWithinAncestors,
+  classesMap,
 }: {
   scope: Scope;
   children: Instance["children"];
@@ -190,6 +196,7 @@ export const generateJsxChildren = ({
   props: Props;
   dataSources: DataSources;
   indexesWithinAncestors: IndexesWithinAncestors;
+  classesMap?: Map<string, Array<string>>;
 }) => {
   let generatedChildren = "";
   for (const child of children) {
@@ -214,7 +221,9 @@ export const generateJsxChildren = ({
         props,
         dataSources,
         indexesWithinAncestors,
+        classesMap,
         children: generateJsxChildren({
+          classesMap,
           scope,
           children: instance.children,
           instances,
@@ -237,6 +246,7 @@ export const generatePageComponent = ({
   props,
   dataSources,
   indexesWithinAncestors,
+  classesMap,
 }: {
   scope: Scope;
   page: Page;
@@ -244,6 +254,7 @@ export const generatePageComponent = ({
   props: Props;
   dataSources: DataSources;
   indexesWithinAncestors: IndexesWithinAncestors;
+  classesMap: Map<string, Array<string>>;
 }) => {
   const instance = instances.get(page.rootInstanceId);
   if (instance === undefined) {
@@ -273,6 +284,16 @@ export const generatePageComponent = ({
         generatedDataSources += `let ${valueName} = _props.params\n`;
       }
     }
+    if (dataSource.type === "resource") {
+      const valueName = scope.getName(dataSource.id, dataSource.name);
+      // call resource by bound variable name
+      const resourceName = scope.getName(
+        dataSource.resourceId,
+        dataSource.name
+      );
+      // cast to any to fix accessing fields from unknown error
+      generatedDataSources += `let ${valueName}: any = _props.resources["${resourceName}"]\n`;
+    }
   }
 
   generatedDataSources += dataSourcesBody;
@@ -283,6 +304,7 @@ export const generatePageComponent = ({
     props,
     dataSources,
     indexesWithinAncestors,
+    classesMap,
     children: generateJsxChildren({
       scope,
       children: instance.children,
@@ -290,12 +312,14 @@ export const generatePageComponent = ({
       props,
       dataSources,
       indexesWithinAncestors,
+      classesMap,
     }),
   });
 
   let generatedComponent = "";
   generatedComponent += `type Params = Record<string, string | undefined>\n`;
-  generatedComponent += `const Page = (_props: { params: Params }) => {\n`;
+  generatedComponent += `type Resources = Record<string, unknown>\n`;
+  generatedComponent += `const Page = (_props: { params: Params, resources: Resources }) => {\n`;
   generatedComponent += `${generatedDataSources}`;
   generatedComponent += `return ${generatedJsx}`;
   generatedComponent += `}\n`;
