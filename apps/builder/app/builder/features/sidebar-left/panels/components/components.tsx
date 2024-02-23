@@ -15,9 +15,8 @@ import {
   ScrollArea,
 } from "@webstudio-is/design-system";
 import { PlusIcon } from "@webstudio-is/icons";
-import type { Publish } from "~/shared/pubsub";
 import { CollapsibleSection } from "~/builder/shared/collapsible-section";
-import type { TabName } from "../../types";
+import type { TabContentProps } from "../../types";
 import { Header, CloseButton } from "../../header";
 import {
   dragItemAttribute,
@@ -25,18 +24,13 @@ import {
   useDraggable,
 } from "./use-draggable";
 import { MetaIcon } from "~/builder/shared/meta-icon";
-import { registeredComponentMetasStore } from "~/shared/nano-states";
+import { $registeredComponentMetas } from "~/shared/nano-states";
 import { getMetaMaps } from "./get-meta-maps";
 import { getInstanceLabel } from "~/shared/instance-utils";
 import { isFeatureEnabled } from "@webstudio-is/feature-flags";
 
-type TabContentProps = {
-  onSetActiveTab: (tabName: TabName) => void;
-  publish: Publish;
-};
-
 export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
-  const metaByComponentName = useStore(registeredComponentMetasStore);
+  const metaByComponentName = useStore($registeredComponentMetas);
   const { metaByCategory, componentNamesByMeta } = useMemo(
     () => getMetaMaps(metaByComponentName),
     [metaByComponentName]

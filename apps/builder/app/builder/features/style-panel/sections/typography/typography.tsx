@@ -1,9 +1,10 @@
 import {
   Flex,
   Grid,
-  DeprecatedIconButton,
-  Tooltip,
+  EnhancedTooltip,
   theme,
+  IconButton,
+  rawTheme,
 } from "@webstudio-is/design-system";
 import { toValue } from "@webstudio-is/css-engine";
 import type { StyleProperty } from "@webstudio-is/css-engine";
@@ -36,8 +37,9 @@ import {
 } from "@webstudio-is/icons";
 import { ToggleGroupControl } from "../../controls/toggle/toggle-control";
 import { FloatingPanel } from "~/builder/shared/floating-panel";
-import { getStyleSource } from "../../shared/style-info";
-import { CollapsibleSection } from "../../shared/collapsible-section";
+import { getStyleSource, type StyleInfo } from "../../shared/style-info";
+import { CollapsibleSection, getDots } from "../../shared/collapsible-section";
+import { forwardRef, type ComponentProps } from "react";
 
 const properties: StyleProperty[] = [
   "fontFamily",
@@ -360,6 +362,37 @@ export const TypographySectionAdvanced = (props: RenderCategoryProps) => {
   );
 };
 
+const AdvancedOptionsButton = forwardRef<
+  HTMLButtonElement,
+  ComponentProps<typeof IconButton> & {
+    currentStyle: StyleInfo;
+    properties: StyleProperty[];
+    /** https://www.radix-ui.com/docs/primitives/components/collapsible#trigger */
+    "data-state"?: "open" | "closed";
+  }
+>(({ currentStyle, properties, ...rest }, ref) => {
+  const dots = getDots(currentStyle, properties);
+  const finalDots = rest["data-state"] === "open" ? [] : dots ?? [];
+  const dotColors = {
+    local: rawTheme.colors.foregroundLocalFlexUi,
+    overwritten: rawTheme.colors.foregroundOverwrittenFlexUi,
+    remote: rawTheme.colors.foregroundRemoteFlexUi,
+  };
+
+  const colors = finalDots.map((dot) => dotColors[dot]);
+
+  return (
+    <Flex>
+      <EnhancedTooltip content="More typography options">
+        <IconButton {...rest} ref={ref}>
+          <EllipsesIcon colors={colors} />
+        </IconButton>
+      </EnhancedTooltip>
+    </Flex>
+  );
+});
+AdvancedOptionsButton.displayName = "AdvancedOptionsButton";
+
 export const TypographySectionAdvancedPopover = (
   props: RenderCategoryProps
 ) => {
@@ -367,6 +400,13 @@ export const TypographySectionAdvancedPopover = (
   const setDirection = setProperty("direction");
   const setTextOverflow = setProperty("textOverflow");
   const setHyphens = setProperty("hyphens");
+  const properties = {
+    whiteSpace: "whiteSpace",
+    direction: "direction",
+    hyphens: "hyphens",
+    textOverflow: "textOverflow",
+  } as const;
+
   return (
     <FloatingPanel
       title="Advanced Typography"
@@ -381,12 +421,12 @@ export const TypographySectionAdvancedPopover = (
           <Grid css={{ gridTemplateColumns: "4fr 6fr" }} gap={2}>
             <PropertyName
               style={currentStyle}
-              properties={["whiteSpace"]}
+              properties={[properties.whiteSpace]}
               label="White Space"
-              onReset={() => deleteProperty("whiteSpace")}
+              onReset={() => deleteProperty(properties.whiteSpace)}
             />
             <SelectControl
-              property="whiteSpace"
+              property={properties.whiteSpace}
               currentStyle={currentStyle}
               setProperty={setProperty}
               deleteProperty={deleteProperty}
@@ -395,9 +435,9 @@ export const TypographySectionAdvancedPopover = (
           <Grid css={{ gridTemplateColumns: "4fr auto" }}>
             <PropertyName
               style={currentStyle}
-              properties={["direction"]}
+              properties={[properties.direction]}
               label="Direction"
-              onReset={() => deleteProperty("direction")}
+              onReset={() => deleteProperty(properties.direction)}
             />
             <ToggleGroupControl
               style={currentStyle}
@@ -428,9 +468,9 @@ export const TypographySectionAdvancedPopover = (
           <Grid css={{ gridTemplateColumns: "4fr auto" }}>
             <PropertyName
               style={currentStyle}
-              properties={["hyphens"]}
+              properties={[properties.hyphens]}
               label="Hyphens"
-              onReset={() => deleteProperty("hyphens")}
+              onReset={() => deleteProperty(properties.hyphens)}
             />
             <ToggleGroupControl
               style={currentStyle}
@@ -459,9 +499,9 @@ export const TypographySectionAdvancedPopover = (
           <Grid css={{ gridTemplateColumns: "4fr auto" }}>
             <PropertyName
               style={currentStyle}
-              properties={["textOverflow"]}
+              properties={[properties.textOverflow]}
               label="Text Overflow"
-              onReset={() => deleteProperty("textOverflow")}
+              onReset={() => deleteProperty(properties.textOverflow)}
             />
             <ToggleGroupControl
               style={currentStyle}
@@ -492,13 +532,10 @@ export const TypographySectionAdvancedPopover = (
         </Grid>
       }
     >
-      <Flex>
-        <Tooltip content="More typography options" delayDuration={0}>
-          <DeprecatedIconButton>
-            <EllipsesIcon />
-          </DeprecatedIconButton>
-        </Tooltip>
-      </Flex>
+      <AdvancedOptionsButton
+        currentStyle={currentStyle}
+        properties={Object.values(properties)}
+      />
     </FloatingPanel>
   );
 };

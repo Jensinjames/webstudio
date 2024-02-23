@@ -14,10 +14,12 @@ import {
   Link2UnlinkedIcon,
   GapHorizontalIcon,
   GapVerticalIcon,
-  ArrowRightIcon,
-  ArrowDownIcon,
   WrapIcon,
   NoWrapIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
 } from "@webstudio-is/icons";
 import type { RenderCategoryProps } from "../../style-sections";
 import { FlexGrid } from "./shared/flex-grid";
@@ -33,6 +35,7 @@ import {
 } from "../../shared/css-value-input";
 import { theme } from "@webstudio-is/design-system";
 import { isFeatureEnabled } from "@webstudio-is/feature-flags";
+import { TooltipContent } from "../../../style-panel/shared/property-name";
 
 const GapLinked = ({
   isLinked,
@@ -59,6 +62,7 @@ const GapInput = ({
   onIntermediateChange,
   onPreviewChange,
   onChange,
+  onReset,
 }: {
   icon: JSX.Element;
   style: StyleInfo;
@@ -67,14 +71,29 @@ const GapInput = ({
   onIntermediateChange: (value?: StyleValue | IntermediateStyleValue) => void;
   onPreviewChange: (value?: StyleValue) => void;
   onChange: (value: StyleValue) => void;
+  onReset: () => void;
 }) => {
   const { label, items } = styleConfigByName(property);
+
   return (
     <Box>
       <CssValueInput
         styleSource={getStyleSource(style[property])}
-        icon={<EnhancedTooltip content={label}>{icon}</EnhancedTooltip>}
-        property="columnGap"
+        icon={
+          <EnhancedTooltip
+            content={
+              <TooltipContent
+                title={label}
+                style={style}
+                properties={[property]}
+                onReset={onReset}
+              />
+            }
+          >
+            {icon}
+          </EnhancedTooltip>
+        }
+        property={property}
         value={style[property]?.value}
         intermediateValue={intermediateValue}
         keywords={items.map((item) => ({
@@ -168,6 +187,13 @@ const FlexGap = ({
               setIntermediateRowGap(value);
             }
           }}
+          onReset={() => {
+            batchUpdate.deleteProperty("columnGap");
+            if (isLinked) {
+              batchUpdate.deleteProperty("rowGap");
+            }
+            batchUpdate.publish();
+          }}
           onPreviewChange={(value) => {
             if (value === undefined) {
               batchUpdate.deleteProperty("columnGap");
@@ -228,6 +254,13 @@ const FlexGap = ({
             if (isLinked) {
               setIntermediateColumnGap(value);
             }
+          }}
+          onReset={() => {
+            batchUpdate.deleteProperty("rowGap");
+            if (isLinked) {
+              batchUpdate.deleteProperty("columnGap");
+            }
+            batchUpdate.publish();
           }}
           onPreviewChange={(value) => {
             if (value === undefined) {
@@ -348,12 +381,14 @@ const LayoutSectionFlex = ({
         <FlexGrid currentStyle={currentStyle} batchUpdate={batchUpdate} />
         <Flex direction="column" justify="between">
           <Flex css={{ gap: theme.spacing[7] }}>
-            <Toggle
+            <MenuControl
               property="flexDirection"
-              iconOn={<ArrowDownIcon />}
-              iconOff={<ArrowRightIcon />}
-              valueOn="column"
-              valueOff="row"
+              icons={{
+                row: ArrowRightIcon,
+                "row-reverse": ArrowLeftIcon,
+                column: ArrowDownIcon,
+                "column-reverse": ArrowUpIcon,
+              }}
               currentStyle={currentStyle}
               setProperty={setProperty}
               deleteProperty={deleteProperty}

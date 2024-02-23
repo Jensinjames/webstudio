@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { computed } from "nanostores";
 import { useStore } from "@nanostores/react";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@webstudio-is/react-sdk";
 import {
   $dataSources,
+  $instances,
   $props,
   $resources,
   $selectedInstanceSelector,
@@ -33,7 +35,10 @@ import {
   useOpenState,
 } from "~/builder/shared/collapsible-section";
 import { formatValuePreview } from "~/builder/shared/expression-editor";
-import { VariablePopoverTrigger } from "./variable-popover";
+import {
+  VariablePopoverProvider,
+  VariablePopoverTrigger,
+} from "./variable-popover";
 
 /**
  * find variables defined specifically on this selected instance
@@ -66,64 +71,88 @@ const $instanceVariableValues = computed(
 /**
  * find variables used in
  *
+ * instance children
  * expression prop
  * action prop
  * url resource field
  * header resource field
  * body resource fiel
  */
-const $usedVariables = computed([$props, $resources], (props, resources) => {
-  const usedVariables = new Set<DataSource["id"]>();
-  const collectExpressionVariables = (expression: string) => {
-    try {
-      validateExpression(expression, {
-        // parse any expression
-        effectful: true,
-        transformIdentifier: (identifier) => {
-          const id = decodeDataSourceVariable(identifier);
-          if (id !== undefined) {
-            usedVariables.add(id);
-          }
-          return identifier;
-        },
-      });
-    } catch {
-      // empty block
-    }
-  };
-  for (const resource of resources.values()) {
-    collectExpressionVariables(resource.url);
-    for (const { value } of resource.headers) {
-      collectExpressionVariables(value);
-    }
-    if (resource.body) {
-      collectExpressionVariables(resource.body);
-    }
-  }
-  for (const prop of props.values()) {
-    if (prop.type === "expression") {
-      collectExpressionVariables(prop.value);
-    }
-    if (prop.type === "action") {
-      for (const value of prop.value) {
-        collectExpressionVariables(value.code);
+const $usedVariables = computed(
+  [$instances, $props, $resources],
+  (instances, props, resources) => {
+    const usedVariables = new Set<DataSource["id"]>();
+    const collectExpressionVariables = (expression: string) => {
+      try {
+        validateExpression(expression, {
+          // parse any expression
+          effectful: true,
+          transformIdentifier: (identifier) => {
+            const id = decodeDataSourceVariable(identifier);
+            if (id !== undefined) {
+              usedVariables.add(id);
+            }
+            return identifier;
+          },
+        });
+      } catch {
+        // empty block
+      }
+    };
+    for (const instance of instances.values()) {
+      for (const child of instance.children) {
+        if (child.type === "expression") {
+          collectExpressionVariables(child.value);
+        }
       }
     }
+    for (const resource of resources.values()) {
+      collectExpressionVariables(resource.url);
+      for (const { value } of resource.headers) {
+        collectExpressionVariables(value);
+      }
+      if (resource.body) {
+        collectExpressionVariables(resource.body);
+      }
+    }
+    for (const prop of props.values()) {
+      if (prop.type === "expression") {
+        collectExpressionVariables(prop.value);
+      }
+      if (prop.type === "action") {
+        for (const value of prop.value) {
+          collectExpressionVariables(value.code);
+        }
+      }
+    }
+    return usedVariables;
   }
-  return usedVariables;
-});
+);
 
 const deleteVariable = (variableId: DataSource["id"]) => {
-  serverSyncStore.createTransaction([$dataSources], (dataSources) => {
-    dataSources.delete(variableId);
-  });
+  serverSyncStore.createTransaction(
+    [$dataSources, $resources],
+    (dataSources, resources) => {
+      const dataSource = dataSources.get(variableId);
+      if (dataSource === undefined) {
+        return;
+      }
+      dataSources.delete(variableId);
+      if (dataSource.type === "resource") {
+        resources.delete(dataSource.resourceId);
+      }
+    }
+  );
 };
 
 const EmptyVariables = () => {
   return (
     <Flex direction="column" css={{ gap: theme.spacing[5] }}>
       <Flex justify="center" align="center" css={{ height: theme.spacing[13] }}>
-        <Text variant="labelsSentenceCase">No variables yet</Text>
+        <Text variant="labelsSentenceCase" align="center">
+          No variables created
+          <br /> on this instance
+        </Text>
       </Flex>
       <Flex justify="center" align="center" css={{ height: theme.spacing[13] }}>
         <VariablePopoverTrigger>
@@ -151,9 +180,6 @@ const VariablesList = () => {
           value === undefined
             ? variable.name
             : `${variable.name}: ${formatValuePreview(value)}`;
-        // user should be able to create and delete
-        const deletable =
-          variable.type === "variable" || variable.type === "resource";
         return (
           <VariablePopoverTrigger key={variable.id} variable={variable}>
             <CssValueListItem
@@ -161,12 +187,22 @@ const VariablesList = () => {
               index={index}
               label={<Label truncate>{label}</Label>}
               buttons={
-                <Tooltip content="Delete variable" side="bottom">
+                <Tooltip
+                  content={
+                    variable.type === "parameter"
+                      ? "Variable is managed by the component and cannot be deleted"
+                      : usedVariables.has(variable.id)
+                      ? "Variable is used in bindings and cannot be deleted"
+                      : "Delete variable"
+                  }
+                  side="bottom"
+                >
                   <SmallIconButton
                     tabIndex={-1}
                     // allow to delete only unused variables
                     disabled={
-                      deletable === false || usedVariables.has(variable.id)
+                      variable.type === "parameter" ||
+                      usedVariables.has(variable.id)
                     }
                     aria-label="Delete variable"
                     variant="destructive"
@@ -184,40 +220,43 @@ const VariablesList = () => {
 };
 
 export const VariablesSection = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useOpenState({
     label: "variables",
     isOpenDefault: true,
   });
   return (
-    <CollapsibleSectionBase
-      label="Variables"
-      fullWidth={true}
-      isOpen={isOpen}
-      onOpenChange={setIsOpen}
-      trigger={
-        <SectionTitle
-          suffix={
-            <VariablePopoverTrigger>
-              <SectionTitleButton
-                prefix={<PlusIcon />}
-                // open panel when add new varable
-                onClick={() => {
-                  if (isOpen === false) {
-                    setIsOpen(true);
-                  }
-                }}
-              />
-            </VariablePopoverTrigger>
-          }
-        >
-          <SectionTitleLabel>Variables</SectionTitleLabel>
-        </SectionTitle>
-      }
-    >
-      {/* prevent applyig gap to list items */}
-      <div>
-        <VariablesList />
-      </div>
-    </CollapsibleSectionBase>
+    <VariablePopoverProvider value={{ containerRef }}>
+      <CollapsibleSectionBase
+        label="Variables"
+        fullWidth={true}
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        trigger={
+          <SectionTitle
+            suffix={
+              <VariablePopoverTrigger>
+                <SectionTitleButton
+                  prefix={<PlusIcon />}
+                  // open panel when add new varable
+                  onClick={() => {
+                    if (isOpen === false) {
+                      setIsOpen(true);
+                    }
+                  }}
+                />
+              </VariablePopoverTrigger>
+            }
+          >
+            <SectionTitleLabel>Variables</SectionTitleLabel>
+          </SectionTitle>
+        }
+      >
+        {/* prevent applyig gap to list items */}
+        <div ref={containerRef}>
+          <VariablesList />
+        </div>
+      </CollapsibleSectionBase>
+    </VariablePopoverProvider>
   );
 };

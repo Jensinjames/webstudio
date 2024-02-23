@@ -1,13 +1,10 @@
 import { useStore } from "@nanostores/react";
-import {
-  Box,
-  Checkbox,
-  CheckboxAndLabel,
-  useId,
-  theme,
-} from "@webstudio-is/design-system";
+import { Checkbox, CheckboxAndLabel, useId } from "@webstudio-is/design-system";
 import { humanizeString } from "~/shared/string-utils";
-import { BindingPopover } from "~/builder/shared/binding-popover";
+import {
+  BindingControl,
+  BindingPopover,
+} from "~/builder/shared/binding-popover";
 import {
   type ControlProps,
   getLabel,
@@ -15,6 +12,7 @@ import {
   Label,
   $selectedInstanceScope,
   updateExpressionValue,
+  useBindingState,
 } from "../shared";
 
 const add = (array: string[], item: string) => {
@@ -37,7 +35,6 @@ export const CheckControl = ({
   propName,
   computedValue,
   deletable,
-  readOnly,
   onChange,
   onDelete,
 }: ControlProps<"check" | "inline-check" | "multi-select">) => {
@@ -53,6 +50,9 @@ export const CheckControl = ({
   const { scope, aliases } = useStore($selectedInstanceScope);
   const expression =
     prop?.type === "expression" ? prop.value : JSON.stringify(computedValue);
+  const { overwritable, variant } = useBindingState(
+    prop?.type === "expression" ? prop.value : undefined
+  );
 
   return (
     <VerticalLayout
@@ -60,7 +60,7 @@ export const CheckControl = ({
         <Label
           htmlFor={`${id}:${options[0]}`}
           description={meta.description}
-          readOnly={readOnly}
+          readOnly={overwritable === false}
         >
           {label}
         </Label>
@@ -68,11 +68,11 @@ export const CheckControl = ({
       deletable={deletable}
       onDelete={onDelete}
     >
-      <Box css={{ position: "relative", paddingTop: theme.spacing[2] }}>
+      <BindingControl>
         {options.map((option) => (
           <CheckboxAndLabel key={option}>
             <Checkbox
-              disabled={readOnly}
+              disabled={overwritable === false}
               checked={value.includes(option)}
               onCheckedChange={(checked) => {
                 const newValue = checked
@@ -100,6 +100,7 @@ export const CheckControl = ({
               return `${label} expects an array of strings`;
             }
           }}
+          variant={variant}
           value={expression}
           onChange={(newExpression) =>
             onChange({ type: "expression", value: newExpression })
@@ -113,7 +114,7 @@ export const CheckControl = ({
             })
           }
         />
-      </Box>
+      </BindingControl>
     </VerticalLayout>
   );
 };

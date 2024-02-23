@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
+import { ErrorBoundary, type FallbackProps } from "react-error-boundary";
 import { useStore } from "@nanostores/react";
 import type { Instances } from "@webstudio-is/sdk";
 import {
@@ -18,20 +19,25 @@ import * as radixComponents from "@webstudio-is/sdk-components-react-radix";
 import * as radixComponentMetas from "@webstudio-is/sdk-components-react-radix/metas";
 import * as radixComponentPropsMetas from "@webstudio-is/sdk-components-react-radix/props";
 import { hooks as radixComponentHooks } from "@webstudio-is/sdk-components-react-radix/hooks";
+import { ErrorMessage } from "~/shared/error";
 import { $publisher, publish } from "~/shared/pubsub";
-import { registerContainers, useCanvasStore } from "~/shared/sync";
+import {
+  registerContainers,
+  serverSyncStore,
+  useCanvasStore,
+} from "~/shared/sync";
 import { useManageDesignModeStyles, GlobalStyles } from "./shared/styles";
 import {
   WebstudioComponentCanvas,
   WebstudioComponentPreview,
 } from "./features/webstudio-component";
 import {
-  assetsStore,
-  pagesStore,
-  instancesStore,
-  selectedPageStore,
+  $assets,
+  $pages,
+  $instances,
+  $selectedPage,
   registerComponentLibrary,
-  registeredComponentsStore,
+  $registeredComponents,
   subscribeComponentHooks,
   $isPreviewMode,
 } from "~/shared/nano-states";
@@ -52,13 +58,26 @@ import { $params } from "./stores";
 
 registerContainers();
 
+const FallbackComponent = ({ error, resetErrorBoundary }: FallbackProps) => {
+  // try to recover from error when webstudio data is changed again
+  useEffect(() => {
+    return serverSyncStore.subscribe(resetErrorBoundary);
+  }, [resetErrorBoundary]);
+  return (
+    // body is required to prevent breaking collapsed instances logic
+    <body>
+      <ErrorMessage message={error.message} />
+    </body>
+  );
+};
+
 const useElementsTree = (
   components: Components,
   instances: Instances,
   params: Params,
   imageLoader: ImageLoader
 ) => {
-  const page = useStore(selectedPageStore);
+  const page = useStore($selectedPage);
   const isPreviewMode = useStore($isPreviewMode);
   const rootInstanceId = page?.rootInstanceId ?? "";
 
@@ -66,9 +85,9 @@ const useElementsTree = (
     // @todo remove after https://github.com/webstudio-is/webstudio/issues/1313 now its needed to be sure that no leaks exists
     // eslint-disable-next-line no-console
     console.log({
-      assetsStore: assetsStore.get().size,
-      pagesStore: pagesStore.get()?.pages.length ?? 0,
-      instancesStore: instancesStore.get().size,
+      $assets: $assets.get().size,
+      $pages: $pages.get()?.pages.length ?? 0,
+      $instances: $instances.get().size,
     });
   }
 
@@ -162,7 +181,7 @@ export const Canvas = ({
     $publisher.set({ publish });
   }, []);
 
-  const selectedPage = useStore(selectedPageStore);
+  const selectedPage = useStore($selectedPage);
 
   useEffect(() => {
     const rootInstanceId = selectedPage?.rootInstanceId;
@@ -184,8 +203,8 @@ export const Canvas = ({
 
   useEffect(subscribeInterceptedEvents, []);
 
-  const components = useStore(registeredComponentsStore);
-  const instances = useStore(instancesStore);
+  const components = useStore($registeredComponents);
+  const instances = useStore($instances);
   const elements = useElementsTree(components, instances, params, imageLoader);
 
   const [isInitialized, setInitialized] = useState(false);
@@ -200,7 +219,10 @@ export const Canvas = ({
   return (
     <>
       <GlobalStyles params={params} />
-      {elements}
+      {/* catch all errors in rendered components */}
+      <ErrorBoundary FallbackComponent={FallbackComponent}>
+        {elements}
+      </ErrorBoundary>
       {
         // Call hooks after render to ensure effects are last.
         // Helps improve outline calculations as all styles are then applied.

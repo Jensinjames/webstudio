@@ -2,8 +2,14 @@
 /* This is a auto generated file for building the project */
 
 import { Fragment, useState } from "react";
-import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
+import type {
+  Asset,
+  FontAsset,
+  ImageAsset,
+  ProjectMeta,
+} from "@webstudio-is/sdk";
+import { useResource } from "@webstudio-is/react-sdk";
+import type { PageMeta } from "@webstudio-is/react-sdk";
 import {
   Body as Body,
   Link as Link,
@@ -16,7 +22,7 @@ import {
   Text as Text,
 } from "@webstudio-is/sdk-components-react";
 
-export const fontAssets: Asset[] = [];
+import type { PageData } from "~/routes/_index";
 export const imageAssets: ImageAsset[] = [
   {
     id: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
@@ -52,24 +58,17 @@ export const imageAssets: ImageAsset[] = [
     meta: { width: 1024, height: 1024 },
   },
 ];
+
+// Font assets on current page (can be preloaded)
+export const pageFontAssets: FontAsset[] = [];
+
+export const pageBackgroundImageAssets: ImageAsset[] = [];
+
 export const pageData: PageData = {
   project: {
     siteName: "KittyGuardedZone",
     faviconAssetId: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
     code: "<script>console.log('KittyGuardedZone')</script>\n",
-  },
-  page: {
-    id: "7Db64ZXgYiRqKSQNR-qTQ",
-    name: "Home",
-    title: "The Ultimate Cat Protection Zone",
-    meta: {
-      description:
-        "Dive into the world of felines and discover why some whiskers are best left untouched. From intriguing cat behaviors to protective measures, \nKittyGuardedZone is your go-to hub for all things 'hands-off' in the cat realm.",
-      socialImageAssetId: "cd939c56-bcdd-4e64-bd9c-567a9bccd3da",
-      custom: [{ property: "fb:app_id", content: "app_id_app_id_app_id" }],
-    },
-    rootInstanceId: "On9cvWCxr5rdZtY9O1Bv0",
-    path: "",
   },
 };
 export const user: { email: string | null } | undefined = {
@@ -77,16 +76,55 @@ export const user: { email: string | null } | undefined = {
 };
 export const projectId = "cddc1d44-af37-4cb6-a430-d300cf6f932d";
 
-type Params = Record<string, string | undefined>;
-type Resources = Record<string, unknown>;
-const Page = (_props: { params: Params; resources: Resources }) => {
+export const getPageMeta = ({
+  params,
+  resources,
+}: {
+  params: Record<string, undefined | string>;
+  resources: Record<string, any>;
+}): PageMeta => {
+  return {
+    title: "The Ultimate Cat Protection Zone",
+    description:
+      "Dive into the world of felines and discover why some whiskers are best left untouched. From intriguing cat behaviors to protective measures, \nKittyGuardedZone is your go-to hub for all things 'hands-off' in the cat realm.",
+    excludePageFromSearch: undefined,
+    socialImageAssetId: "cd939c56-bcdd-4e64-bd9c-567a9bccd3da",
+    socialImageUrl: undefined,
+    status: undefined,
+    redirect: undefined,
+    custom: [
+      {
+        property: "fb:app_id",
+        content: "app_id_app_id_app_id",
+      },
+    ],
+  };
+};
+
+const Page = ({}: { params: any }) => {
   return (
-    <Body data-ws-id="On9cvWCxr5rdZtY9O1Bv0" data-ws-component="Body">
-      <Heading data-ws-id="nVMWvMsaLCcb0o1wuNQgg" data-ws-component="Heading">
+    <Body
+      data-ws-id="On9cvWCxr5rdZtY9O1Bv0"
+      data-ws-component="Body"
+      className="c1wfdiy8 cg4dwmz c1psdgn0 ciwrswx"
+    >
+      <Heading
+        data-ws-id="nVMWvMsaLCcb0o1wuNQgg"
+        data-ws-component="Heading"
+        className="cr3bcad"
+      >
         {"DO NOT TOUCH THIS PROJECT, IT'S USED FOR FIXTURES"}
       </Heading>
-      <Box data-ws-id="f0kF-WmL7DQg7MSyRvqY1" data-ws-component="Box">
-        <Box data-ws-id="5XDbqPrZDeCwq4YJ3CHsc" data-ws-component="Box">
+      <Box
+        data-ws-id="f0kF-WmL7DQg7MSyRvqY1"
+        data-ws-component="Box"
+        className="ct8bqew c18lita3 c1ac63p"
+      >
+        <Box
+          data-ws-id="5XDbqPrZDeCwq4YJ3CHsc"
+          data-ws-component="Box"
+          className="cdojbwh c4wr6vh cn27x24 cl3i1h5"
+        >
           <Heading
             data-ws-id="oLXYe1UQiVMhVnZGvJSMr"
             data-ws-component="Heading"
@@ -127,6 +165,7 @@ const Page = (_props: { params: Params; resources: Resources }) => {
             data-ws-id="9I4GRU1sev48hREkQcKQ-"
             data-ws-component="Link"
             href={"/_route_with_symbols_"}
+            className="cnpb7qg"
           >
             {"Symbols in path"}
           </Link>
@@ -134,17 +173,23 @@ const Page = (_props: { params: Params; resources: Resources }) => {
             data-ws-id="81ejLVXyFEV1SxiJrWhyw"
             data-ws-component="Link"
             href={"/heading-with-id#my-heading"}
+            className="cnpb7qg"
           >
             {"Link to instance"}
           </Link>
         </Box>
-        <Box data-ws-id="qPnkiFGDj8dITWb1kmpGl" data-ws-component="Box">
+        <Box
+          data-ws-id="qPnkiFGDj8dITWb1kmpGl"
+          data-ws-component="Box"
+          className="cdojbwh c4wr6vh cn27x24 cl3i1h5"
+        >
           <Image
             data-ws-id="pX1ovPI7NdC0HRjkw6Kpw"
             data-ws-component="Image"
             src={
               "/assets/_937084ed-a798-49fe-8664-df93a2af605e_uiBk3o6UWdqolyakMvQJ9.jpeg"
             }
+            className="c1arp7pb"
           />
         </Box>
       </Box>
@@ -154,6 +199,7 @@ const Page = (_props: { params: Params; resources: Resources }) => {
 
 export { Page };
 
+type Params = Record<string, string | undefined>;
 export const getRemixParams = ({ ...params }: Params): Params => {
   return params;
 };
@@ -165,6 +211,7 @@ export const pagesPaths = new Set([
   "/form",
   "/heading-with-id",
   "/resources",
+  "/nested/nested-page",
 ]);
 
 export const formsProperties = new Map<

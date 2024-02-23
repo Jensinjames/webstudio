@@ -18,7 +18,7 @@ import merge from "deepmerge";
 import {
   generateCss,
   generateUtilsExport,
-  generatePageComponent,
+  generateWebstudioComponent,
   getIndexesWithinAncestors,
   namespaceMeta,
   type Params,
@@ -28,6 +28,8 @@ import {
   generateRemixParams,
   generateResourcesLoader,
   collectionComponent,
+  generatePageMeta,
+  executeExpression,
 } from "@webstudio-is/react-sdk";
 import type {
   Instance,
@@ -43,6 +45,7 @@ import type {
 import {
   createScope,
   findTreeInstanceIds,
+  getPagePath,
   parseComponentName,
 } from "@webstudio-is/sdk";
 import type { Data } from "@webstudio-is/http-client";
@@ -58,16 +61,16 @@ import {
   isFileExists,
 } from "./fs-utils";
 import type * as sharedConstants from "~/constants.mjs";
-import type { PageData } from "../templates/route-template";
+import type { PageData } from "../templates/defaults/__templates__/route-template";
 
 const limit = pLimit(10);
 
 type ComponentsByPage = {
-  [path: string]: Set<string>;
+  [id: Page["id"]]: Set<string>;
 };
 
 type SiteDataByPage = {
-  [path: string]: {
+  [id: Page["id"]]: {
     page: Page;
     build: {
       props: [Prop["id"], Prop][];
@@ -145,6 +148,9 @@ const mergeJsonFiles = async (sourcePath: string, destinationPath: string) => {
   await writeFile(destinationPath, content, "utf8");
 };
 
+/**
+ * Check if template is internal cli template or external path
+ */
 const isCliTemplate = async (template: string) => {
   const currentPath = fileURLToPath(new URL(import.meta.url));
 
@@ -162,23 +168,32 @@ const isCliTemplate = async (template: string) => {
   return false;
 };
 
-const copyTemplates = async (template: string = "defaults") => {
+/**
+ * template can be internal cli template or external path
+ */
+const getTemplatePath = async (template: string) => {
   const currentPath = fileURLToPath(new URL(import.meta.url));
 
-  const templatesPath = (await isCliTemplate(template))
+  const templatePath = (await isCliTemplate(template))
     ? normalize(join(dirname(currentPath), "..", "templates", template))
     : template;
 
-  await cp(templatesPath, cwd(), {
+  return templatePath;
+};
+
+const copyTemplates = async (template: string = "defaults") => {
+  const templatePath = await getTemplatePath(template);
+
+  await cp(templatePath, cwd(), {
     recursive: true,
     filter: (source) => {
       return basename(source) !== "package.json";
     },
   });
 
-  if ((await isFileExists(join(templatesPath, "package.json"))) === true) {
+  if ((await isFileExists(join(templatePath, "package.json"))) === true) {
     await mergeJsonFiles(
-      join(templatesPath, "package.json"),
+      join(templatePath, "package.json"),
       join(cwd(), "package.json")
     );
   }
@@ -280,6 +295,8 @@ export const prebuild = async (options: {
   const projectMetas = new Map<Instance["component"], WsComponentMeta>();
   const componentsByPage: ComponentsByPage = {};
   const siteDataByPage: SiteDataByPage = {};
+  const fontAssetsByPage: Record<Page["id"], FontAsset[]> = {};
+  const backgroundImageAssetsByPage: Record<Page["id"], ImageAsset[]> = {};
 
   for (const page of Object.values(siteData.pages)) {
     const instanceMap = new Map(siteData.build.instances);
@@ -296,7 +313,7 @@ export const prebuild = async (options: {
       props: siteData.build.props.map(([_id, prop]) => prop),
       assetBaseUrl,
       assets: new Map(siteData.assets.map((asset) => [asset.id, asset])),
-      pages: new Map(siteData.pages.map((page) => [page.id, page])),
+      pages: siteData.build.pages,
     });
 
     const props: [Prop["id"], Prop][] = [];
@@ -326,7 +343,7 @@ export const prebuild = async (options: {
       }
     }
 
-    siteDataByPage[page.path] = {
+    siteDataByPage[page.id] = {
       build: {
         props,
         instances,
@@ -338,21 +355,76 @@ export const prebuild = async (options: {
       assets: siteData.assets,
     };
 
-    componentsByPage[page.path] = new Set();
+    componentsByPage[page.id] = new Set();
     for (const [_instanceId, instance] of instances) {
       if (instance.component === collectionComponent) {
         continue;
       }
-      componentsByPage[page.path].add(instance.component);
+      componentsByPage[page.id].add(instance.component);
       const meta = metas.get(instance.component);
       if (meta) {
         projectMetas.set(instance.component, meta);
       }
     }
+
+    // Extract background SVGs and Font assets
+    const styleSourceSelections = siteData.build?.styleSourceSelections ?? [];
+    const pageStyleSourceIds = new Set(
+      styleSourceSelections
+        .filter(([, { instanceId }]) => pageInstanceSet.has(instanceId))
+        .map(([, { values }]) => values)
+        .flat()
+    );
+
+    const pageStyles = siteData.build?.styles?.filter(([, { styleSourceId }]) =>
+      pageStyleSourceIds.has(styleSourceId)
+    );
+
+    // Extract fonts
+    const pageFontFamilySet = new Set(
+      pageStyles
+        .filter(([, { property }]) => property === "fontFamily")
+        .map(([, { value }]) =>
+          value.type === "fontFamily" ? value.value : undefined
+        )
+        .flat()
+        .filter(<T>(value: T): value is NonNullable<T> => value !== undefined)
+    );
+
+    const pageFontAssets = siteData.assets
+      .filter((asset): asset is FontAsset => asset.type === "font")
+      .filter((fontAsset) => pageFontFamilySet.has(fontAsset.meta.family));
+
+    fontAssetsByPage[page.id] = pageFontAssets;
+
+    // Extract background images
+    // backgroundImage => "value.type=="layers" => value.type == "image" => .value (assetId)
+    const backgroundImageAssetIdSet = new Set(
+      pageStyles
+        .filter(([, { property }]) => property === "backgroundImage")
+        .map(([, { value }]) =>
+          value.type === "layers"
+            ? value.value.map((layer) =>
+                layer.type === "image"
+                  ? layer.value.type === "asset"
+                    ? layer.value.value
+                    : undefined
+                  : undefined
+              )
+            : undefined
+        )
+        .flat()
+        .filter(<T>(value: T): value is NonNullable<T> => value !== undefined)
+    );
+
+    const backgroundImageAssets = siteData.assets
+      .filter((asset): asset is ImageAsset => asset.type === "image")
+      .filter((imageAsset) => backgroundImageAssetIdSet.has(imageAsset.id));
+
+    backgroundImageAssetsByPage[page.id] = backgroundImageAssets;
   }
 
   const assetsToDownload: Promise<void>[] = [];
-  const fontAssets: FontAsset[] = [];
 
   const imageAssets: ImageAsset[] = [];
   for (const asset of siteData.assets) {
@@ -391,12 +463,12 @@ export const prebuild = async (options: {
             )
           )
         );
-        fontAssets.push(asset);
       }
     }
   }
 
   spinner.text = "Generating css file";
+
   const { cssText, classesMap } = generateCss(
     {
       assets: siteData.assets,
@@ -408,8 +480,7 @@ export const prebuild = async (options: {
     },
     {
       assetBaseUrl,
-      // @todo switch to atomic depending on site settings
-      atomic: false,
+      atomic: siteData.build.pages.compiler?.atomicStyles ?? true,
     }
   );
 
@@ -417,23 +488,22 @@ export const prebuild = async (options: {
 
   spinner.text = "Generating routes and pages";
 
-  const routeFileTemplate = await readFile(
-    normalize(
-      join(
-        dirname(fileURLToPath(new URL(import.meta.url))),
-        "..",
-        "templates",
-        "route-template.tsx"
-      )
-    ),
-    "utf8"
+  const routeTemplatePath = normalize(
+    join(cwd(), "__templates__", "route-template.tsx")
   );
 
-  for (const [pathname, pageComponents] of Object.entries(componentsByPage)) {
+  const routeFileTemplate = await readFile(routeTemplatePath, "utf8");
+
+  await rm(dirname(routeTemplatePath), { recursive: true });
+
+  for (const [pageId, pageComponents] of Object.entries(componentsByPage)) {
     const scope = createScope([
       // manually maintained list of occupied identifiers
       "useState",
       "Fragment",
+      "useResource",
+      "PageMeta",
+      "createPageMeta",
       "PageData",
       "Asset",
       "fontAssets",
@@ -485,11 +555,12 @@ export const prebuild = async (options: {
       componentImports += `import { ${specifiers} } from "${namespace}";\n`;
     }
 
-    const pageData = siteDataByPage[pathname];
+    const pageData = siteDataByPage[pageId];
+    const pageFontAssets = fontAssetsByPage[pageId];
+    const pageBackgroundImageAssets = backgroundImageAssetsByPage[pageId];
     // serialize data only used in runtime
     const renderedPageData: PageData = {
       project: siteData.build.pages.meta,
-      page: pageData.page,
     };
 
     const rootInstanceId = pageData.page.rootInstanceId;
@@ -501,9 +572,30 @@ export const prebuild = async (options: {
       pages: siteData.build.pages,
       props,
     });
-    const pageComponent = generatePageComponent({
+    // generate new Page Params variable if does not exist
+    // to allow always passing it from route template
+    const pathParamsDataSourceId =
+      pageData.page.pathParamsDataSourceId ?? "pathParamsDataSourceId";
+    if (pageData.page.pathParamsDataSourceId === undefined) {
+      dataSources.set(pathParamsDataSourceId, {
+        id: pathParamsDataSourceId,
+        name: "Path Params",
+        type: "parameter",
+      });
+    }
+    const pageComponent = generateWebstudioComponent({
       scope,
-      page: pageData.page,
+      name: "Page",
+      rootInstanceId,
+      parameters: [
+        {
+          id: `params`,
+          instanceId: "",
+          name: "params",
+          type: "parameter",
+          value: pathParamsDataSourceId,
+        },
+      ],
       instances,
       props,
       dataSources,
@@ -518,22 +610,33 @@ export const prebuild = async (options: {
     const pageExports = `/* eslint-disable */
 /* This is a auto generated file for building the project */ \n
 import { Fragment, useState } from "react";
-import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
+import type { Asset, FontAsset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
+import { useResource } from "@webstudio-is/react-sdk";
+import type { PageMeta } from "@webstudio-is/react-sdk";
 ${componentImports}
-export const fontAssets: Asset[] = ${JSON.stringify(fontAssets)}
+import type { PageData } from "~/routes/_index";
 export const imageAssets: ImageAsset[] = ${JSON.stringify(imageAssets)}
+
+// Font assets on current page (can be preloaded)
+export const pageFontAssets: FontAsset[] = ${JSON.stringify(pageFontAssets)}
+
+export const pageBackgroundImageAssets: ImageAsset[] = ${JSON.stringify(
+      pageBackgroundImageAssets
+    )}
+
 export const pageData: PageData = ${JSON.stringify(renderedPageData)};
 export const user: { email: string | null } | undefined = ${JSON.stringify(
       siteData.user
     )};
 export const projectId = "${siteData.build.projectId}";
 
+${generatePageMeta({ globalScope: scope, page: pageData.page, dataSources })}
+
 ${pageComponent}
 
 export { Page }
 
-${generateRemixParams(pathname)}
+${generateRemixParams(pageData.page.path)}
 
 ${utilsExport}
 `;
@@ -550,14 +653,18 @@ ${utilsExport}
       https://remix.run/docs/en/main/file-conventions/route-files-v2#nested-urls-without-layout-nesting
     */
 
-    const remixRoute = generateRemixRoute(pathname);
+    const pagePath = getPagePath(pageData.page.id, siteData.build.pages);
+    const remixRoute = generateRemixRoute(pagePath);
     const fileName = `${remixRoute}.tsx`;
 
     const routeFileContent = routeFileTemplate
-      .replace('../__generated__/index"', `../__generated__/${remixRoute}"`)
       .replace(
-        '../__generated__/index.server"',
-        `../__generated__/${remixRoute}.server"`
+        /".*\/__generated__\/_index"/,
+        `"../__generated__/${remixRoute}"`
+      )
+      .replace(
+        /".*\/__generated__\/_index.server"/,
+        `"../__generated__/${remixRoute}.server"`
       );
 
     await ensureFileInPath(join(routesDir, fileName), routeFileContent);
@@ -580,7 +687,12 @@ ${utilsExport}
       export const sitemap = ${JSON.stringify(
         {
           pages: siteData.pages
-            .filter((page) => page.meta.excludePageFromSearch !== true)
+            // ignore pages with excludePageFromSearch bound to variables
+            // because there is no data from cms available at build time
+            .filter(
+              (page) =>
+                executeExpression(page.meta.excludePageFromSearch) !== true
+            )
             .map((page) => ({
               path: page.path,
               lastModified: siteData.build.updatedAt,
@@ -591,6 +703,25 @@ ${utilsExport}
       )};
     `
   );
+
+  const redirects = siteData.build.pages?.redirects;
+  if (redirects !== undefined && redirects.length > 0) {
+    spinner.text = "Generating redirects";
+
+    for (const redirect of redirects) {
+      const redirectPagePath = generateRemixRoute(redirect.old);
+      const redirectFileName = `${redirectPagePath}.ts`;
+
+      const content = `import { type LoaderArgs, redirect } from "@remix-run/server-runtime";
+
+export const loader = (arg: LoaderArgs) => {
+  return redirect("${redirect.new}", ${redirect.status ?? 301});
+};
+`;
+
+      await ensureFileInPath(join(routesDir, redirectFileName), content);
+    }
+  }
 
   spinner.text = "Downloading fonts and images";
   await Promise.all(assetsToDownload);

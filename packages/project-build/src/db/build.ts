@@ -11,21 +11,24 @@ import {
   authorizeProject,
   type AppContext,
 } from "@webstudio-is/trpc-interface/index.server";
-import type { Build } from "../types";
-import { Pages, type Deployment, Resource } from "@webstudio-is/sdk";
 import {
-  createInitialBreakpoints,
-  parseBreakpoints,
-  serializeBreakpoints,
-} from "./breakpoints";
-import { parseStyles } from "./styles";
-import { parseStyleSources } from "./style-sources";
-import { parseStyleSourceSelections } from "./style-source-selections";
-import { parseProps } from "./props";
-import { parseDataSources } from "./data-sources";
-import { parseInstances, serializeInstances } from "./instances";
-import { parseDeployment, serializeDeployment } from "./deployment";
+  type Deployment,
+  type Resource,
+  type StyleSource,
+  type Prop,
+  type DataSource,
+  type Instance,
+  type Breakpoint,
+  Pages,
+  initialBreakpoints,
+} from "@webstudio-is/sdk";
 import type { Data } from "@webstudio-is/http-client";
+import type { Build } from "../types";
+import { parseStyles } from "./styles";
+import { parseStyleSourceSelections } from "./style-source-selections";
+import { parseDeployment, serializeDeployment } from "./deployment";
+import { parsePages, serializePages } from "./pages";
+import { createDefaultPages } from "../shared/pages-utils";
 
 export const parseData = <Type extends { id: string }>(
   string: string
@@ -45,17 +48,11 @@ const parseBuild = async (build: DbBuild): Promise<Build> => {
   // eslint-disable-next-line no-console
   console.time("parseBuild");
   try {
-    const pages = JSON.parse(build.pages) as Pages;
-    const breakpoints = Array.from(parseBreakpoints(build.breakpoints));
+    const pages = parsePages(build.pages);
     const styles = Array.from(parseStyles(build.styles));
-    const styleSources = Array.from(parseStyleSources(build.styleSources));
     const styleSourceSelections = Array.from(
       parseStyleSourceSelections(build.styleSourceSelections)
     );
-    const props = Array.from(parseProps(build.props));
-    const dataSources = Array.from(parseDataSources(build.dataSources));
-    const instances = Array.from(parseInstances(build.instances));
-
     const deployment = parseDeployment(build.deployment);
 
     const result: Build = {
@@ -65,14 +62,14 @@ const parseBuild = async (build: DbBuild): Promise<Build> => {
       createdAt: build.createdAt.toISOString(),
       updatedAt: build.updatedAt.toISOString(),
       pages,
-      breakpoints,
+      breakpoints: Array.from(parseData<Breakpoint>(build.breakpoints)),
       styles,
-      styleSources,
+      styleSources: Array.from(parseData<StyleSource>(build.styleSources)),
       styleSourceSelections,
-      props,
-      dataSources,
+      props: Array.from(parseData<Prop>(build.props)),
+      dataSources: Array.from(parseData<DataSource>(build.dataSources)),
       resources: Array.from(parseData<Resource>(build.resources)),
-      instances,
+      instances: Array.from(parseData<Instance>(build.instances)),
       deployment,
     } satisfies Data["build"];
 
@@ -126,6 +123,19 @@ const createNewPageInstances = (): Build["instances"] => {
   ];
 };
 
+const createInitialBreakpoints = (): [Breakpoint["id"], Breakpoint][] => {
+  return initialBreakpoints.map((breakpoint) => {
+    const id = nanoid();
+    return [
+      id,
+      {
+        ...breakpoint,
+        id,
+      },
+    ];
+  });
+};
+
 /*
  * We create "dev" build in two cases:
  *   1. when we create a new project
@@ -150,25 +160,16 @@ export const createBuild = async (
   const newInstances = createNewPageInstances();
   const [rootInstanceId] = newInstances[0];
 
-  const newPages = Pages.parse({
-    meta: {},
-    homePage: {
-      id: nanoid(),
-      name: "Home",
-      path: "",
-      title: "Home",
-      meta: {},
-      rootInstanceId,
-    },
-    pages: [],
-  } satisfies Pages);
+  const defaultPages = Pages.parse(createDefaultPages({ rootInstanceId }));
 
   await client.build.create({
     data: {
       projectId: props.projectId,
-      pages: JSON.stringify(newPages),
-      breakpoints: serializeBreakpoints(new Map(createInitialBreakpoints())),
-      instances: serializeInstances(new Map(newInstances)),
+      pages: serializePages(defaultPages),
+      breakpoints: serializeData<Breakpoint>(
+        new Map(createInitialBreakpoints())
+      ),
+      instances: serializeData<Instance>(new Map(newInstances)),
     },
   });
 };

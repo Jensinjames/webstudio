@@ -10,11 +10,12 @@ import {
   useEffect,
   useRef,
 } from "react";
-// @todo:
-//   react-popper "is an internal utility, not intended for public usage"
-//   probably need to switch to @radix-ui/react-popover
-import { Popper, PopperContent, PopperAnchor } from "@radix-ui/react-popper";
-import { Portal } from "@radix-ui/react-portal";
+import {
+  Portal,
+  Popover,
+  PopoverContent,
+  PopoverAnchor,
+} from "@radix-ui/react-popover";
 import {
   type UseComboboxState,
   type UseComboboxStateChangeOptions,
@@ -93,20 +94,26 @@ export const ComboboxListbox = Listbox;
 
 export const ComboboxListboxItem = forwardRef(ListboxItemBase);
 
-export const Combobox = Popper;
+export const Combobox = (props: ComponentProps<typeof Popover>) => {
+  return <Popover {...props} modal />;
+};
 
 export const ComboboxContent = forwardRef(
-  (props: ComponentProps<typeof PopperContent>, ref: Ref<HTMLDivElement>) => (
-    // @radix-ui/react-popover adds pointer-events: none to body
-    // so need to reset for combobox rendered inside of popover
-    <Portal style={{ pointerEvents: "auto" }}>
-      <PopperContent ref={ref} {...props} />
+  (props: ComponentProps<typeof PopoverContent>, ref: Ref<HTMLDivElement>) => (
+    <Portal>
+      <PopoverContent
+        ref={ref}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+        }}
+        {...props}
+      />
     </Portal>
   )
 );
 ComboboxContent.displayName = "ComboboxContent";
 
-export const ComboboxAnchor = PopperAnchor;
+export const ComboboxAnchor = PopoverAnchor;
 
 type Match<Item> = (
   search: string,
@@ -190,6 +197,7 @@ export const useCombobox = <Item,>({
   ...rest
 }: UseComboboxProps<Item>) => {
   const [isOpen, setIsOpen] = useState(false);
+  const selectedItemRef = useRef<Item>();
 
   const { filteredItems, filter, resetFilter } = useFilter<Item>({
     items,
@@ -239,7 +247,9 @@ export const useCombobox = <Item,>({
       }
 
       if (selectedItem != null) {
-        onItemSelect?.(selectedItem);
+        // We are using a ref because we need to call onItemSelect after the component is closed
+        // otherwise popover will take focus from on click and you can't focus something else after onItemSelect imediately
+        selectedItemRef.current = selectedItem;
       }
     },
     onHighlightedIndexChange({ highlightedIndex }) {
@@ -257,6 +267,14 @@ export const useCombobox = <Item,>({
       resetFilter();
     }
   }, [isOpen, resetFilter]);
+
+  useEffect(() => {
+    // Selecting the item when the popover is closed.
+    if (isOpen === false && selectedItemRef.current) {
+      onItemSelect?.(selectedItemRef.current);
+      selectedItemRef.current = undefined;
+    }
+  }, [isOpen, onItemSelect]);
 
   const enhancedGetInputProps = useCallback(
     (options?: UseComboboxGetInputPropsOptions) => {

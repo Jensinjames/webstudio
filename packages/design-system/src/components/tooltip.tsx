@@ -1,5 +1,5 @@
 import type { Ref, ComponentProps, ReactNode, ReactElement } from "react";
-import { Fragment, forwardRef, useEffect } from "react";
+import { forwardRef, useEffect } from "react";
 import { styled } from "../stitches.config";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
@@ -8,6 +8,8 @@ import { Text } from "./text";
 import type { CSS } from "../stitches.config";
 import { theme } from "../stitches.config";
 import { disableCanvasPointerEvents } from "../utilities";
+
+export const TooltipProvider = TooltipPrimitive.TooltipProvider;
 
 export type TooltipProps = ComponentProps<typeof TooltipPrimitive.Root> &
   Omit<ComponentProps<typeof Content>, "content"> & {
@@ -125,16 +127,16 @@ Tooltip.displayName = "Tooltip";
 export const InputErrorsTooltip = ({
   errors,
   children,
+  side,
+  css,
   ...rest
 }: Omit<TooltipProps, "content"> & {
   errors?: string[];
   children: ComponentProps<typeof Tooltip>["children"];
+  side?: ComponentProps<typeof Tooltip>["side"];
 }) => {
   const content = errors?.map((error, index) => (
-    <Fragment key={index}>
-      {index > 0 && <br />}
-      {error}
-    </Fragment>
+    <Text key={index}>{error}</Text>
   ));
   return (
     // We intentionally always pass non empty content to avoid optimization inside Tooltip
@@ -145,7 +147,8 @@ export const InputErrorsTooltip = ({
       {...rest}
       content={content ?? " "}
       open={errors !== undefined && errors.length !== 0}
-      side="right"
+      side={side ?? "right"}
+      css={css}
     >
       {children}
     </Tooltip>

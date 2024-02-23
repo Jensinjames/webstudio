@@ -1,14 +1,11 @@
 import { useId } from "react";
 import { useStore } from "@nanostores/react";
-import {
-  Box,
-  RadioGroup,
-  Radio,
-  RadioAndLabel,
-  theme,
-} from "@webstudio-is/design-system";
+import { RadioGroup, Radio, RadioAndLabel } from "@webstudio-is/design-system";
 import { humanizeString } from "~/shared/string-utils";
-import { BindingPopover } from "~/builder/shared/binding-popover";
+import {
+  BindingControl,
+  BindingPopover,
+} from "~/builder/shared/binding-popover";
 import {
   type ControlProps,
   getLabel,
@@ -16,6 +13,7 @@ import {
   Label,
   $selectedInstanceScope,
   updateExpressionValue,
+  useBindingState,
 } from "../shared";
 
 export const RadioControl = ({
@@ -24,7 +22,6 @@ export const RadioControl = ({
   propName,
   computedValue,
   deletable,
-  readOnly,
   onChange,
   onDelete,
 }: ControlProps<"radio" | "inline-radio">) => {
@@ -40,20 +37,27 @@ export const RadioControl = ({
   const { scope, aliases } = useStore($selectedInstanceScope);
   const expression =
     prop?.type === "expression" ? prop.value : JSON.stringify(computedValue);
+  const { overwritable, variant } = useBindingState(
+    prop?.type === "expression" ? prop.value : undefined
+  );
 
   return (
     <VerticalLayout
       label={
-        <Label htmlFor={id} description={meta.description} readOnly={readOnly}>
+        <Label
+          htmlFor={id}
+          description={meta.description}
+          readOnly={overwritable === false}
+        >
           {label}
         </Label>
       }
       deletable={deletable}
       onDelete={onDelete}
     >
-      <Box css={{ position: "relative", paddingTop: theme.spacing[2] }}>
+      <BindingControl>
         <RadioGroup
-          disabled={readOnly}
+          disabled={overwritable === false}
           name="value"
           value={value}
           onValueChange={(value) => {
@@ -86,6 +90,7 @@ export const RadioControl = ({
               return `${label} expects one of ${options}`;
             }
           }}
+          variant={variant}
           value={expression}
           onChange={(newExpression) =>
             onChange({ type: "expression", value: newExpression })
@@ -94,7 +99,7 @@ export const RadioControl = ({
             onChange({ type: "string", value: String(evaluatedValue) })
           }
         />
-      </Box>
+      </BindingControl>
     </VerticalLayout>
   );
 };

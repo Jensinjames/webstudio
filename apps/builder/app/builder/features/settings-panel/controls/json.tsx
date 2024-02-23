@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import { theme, Box } from "@webstudio-is/design-system";
 import {
   type ControlProps,
   getLabel,
@@ -8,12 +7,16 @@ import {
   Label,
   updateExpressionValue,
   $selectedInstanceScope,
+  useBindingState,
 } from "../shared";
 import {
   ExpressionEditor,
   formatValue,
 } from "~/builder/shared/expression-editor";
-import { BindingPopover } from "~/builder/shared/binding-popover";
+import {
+  BindingControl,
+  BindingPopover,
+} from "~/builder/shared/binding-popover";
 
 export const JsonControl = ({
   meta,
@@ -21,7 +24,6 @@ export const JsonControl = ({
   propName,
   computedValue,
   deletable,
-  readOnly,
   onChange,
   onDelete,
 }: ControlProps<"json">) => {
@@ -43,20 +45,23 @@ export const JsonControl = ({
 
   const { scope, aliases } = useStore($selectedInstanceScope);
   const expression = prop?.type === "expression" ? prop.value : valueString;
+  const { overwritable, variant } = useBindingState(
+    prop?.type === "expression" ? prop.value : undefined
+  );
 
   return (
     <VerticalLayout
       label={
-        <Label description={meta.description} readOnly={readOnly}>
+        <Label description={meta.description} readOnly={overwritable === false}>
           {label}
         </Label>
       }
       deletable={deletable}
       onDelete={onDelete}
     >
-      <Box css={{ position: "relative", py: theme.spacing[2] }}>
+      <BindingControl>
         <ExpressionEditor
-          readOnly={readOnly}
+          readOnly={overwritable === false}
           value={localValue.value}
           onChange={localValue.set}
           onBlur={localValue.save}
@@ -64,6 +69,7 @@ export const JsonControl = ({
         <BindingPopover
           scope={scope}
           aliases={aliases}
+          variant={variant}
           value={expression}
           onChange={(newExpression) =>
             onChange({ type: "expression", value: newExpression })
@@ -72,7 +78,7 @@ export const JsonControl = ({
             onChange({ type: "json", value: evaluatedValue })
           }
         />
-      </Box>
+      </BindingControl>
     </VerticalLayout>
   );
 };

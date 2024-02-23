@@ -16,9 +16,9 @@ import {
 } from "@webstudio-is/design-system";
 import {
   $propValuesByInstanceSelector,
-  propsIndexStore,
-  propsStore,
-  selectedInstanceSelectorStore,
+  $propsIndex,
+  $props,
+  $selectedInstanceSelector,
 } from "~/shared/nano-states";
 import { CollapsibleSectionWithAddButton } from "~/builder/shared/collapsible-section";
 import {
@@ -33,9 +33,32 @@ import {
 } from "./use-props-logic";
 import { Row, getLabel } from "../shared";
 import { serverSyncStore } from "~/shared/sync";
+import { matchSorter } from "match-sorter";
 
 const itemToString = (item: NameAndLabel | null) =>
   item ? getLabel(item, item.name) : "";
+
+const matchOrSuggestToCreate = (
+  search: string,
+  items: Array<NameAndLabel>,
+  itemToString: (item: NameAndLabel) => string
+): Array<NameAndLabel> => {
+  const matched = matchSorter(items, search, {
+    keys: [itemToString],
+  });
+
+  if (
+    search.trim() !== "" &&
+    itemToString(matched[0]).toLocaleLowerCase() !==
+      search.toLocaleLowerCase().trim()
+  ) {
+    matched.unshift({
+      name: search.trim(),
+      label: `Create "${search.trim()}"`,
+    });
+  }
+  return matched;
+};
 
 const PropsCombobox = ({
   items,
@@ -51,7 +74,7 @@ const PropsCombobox = ({
     itemToString,
     onItemSelect,
     selectedItem: undefined,
-
+    match: matchOrSuggestToCreate,
     // this weird handling of value is needed to work around a limitation in useCombobox
     // where it doesn't allow to leave both `value` and `selectedItem` empty/uncontrolled
     value: { name: "", label: inputValue },
@@ -59,17 +82,17 @@ const PropsCombobox = ({
   });
 
   return (
-    <Combobox>
+    <Combobox open={combobox.isOpen}>
       <div {...combobox.getComboboxProps()}>
         <ComboboxAnchor>
           <InputField
             autoFocus
             {...combobox.getInputProps()}
-            placeholder="New Property"
+            placeholder="Find or create a property"
             suffix={<NestedInputButton {...combobox.getToggleButtonProps()} />}
           />
         </ComboboxAnchor>
-        <ComboboxContent align="end" sideOffset={5}>
+        <ComboboxContent align="start" sideOffset={2}>
           <ComboboxListbox {...combobox.getMenuProps()}>
             {combobox.isOpen &&
               combobox.items.map((item, index) => (
@@ -96,17 +119,17 @@ const renderProperty = (
     component,
     instanceId,
   }: PropsSectionProps,
-  { prop, propName, meta, readOnly }: PropAndMeta,
-  deletable?: boolean
+  { prop, propName, meta }: PropAndMeta,
+  { deletable, autoFocus }: { deletable?: boolean; autoFocus?: boolean } = {}
 ) =>
   renderControl({
+    autoFocus,
     key: propName,
     instanceId,
     meta,
     prop,
-    computedValue: propValues.get(propName),
+    computedValue: propValues.get(propName) ?? meta.defaultValue,
     propName,
-    readOnly,
     deletable: deletable ?? false,
     onDelete: () => {
       if (prop) {
@@ -175,7 +198,7 @@ export const PropsSection = (props: PropsSectionProps) => {
 
   return (
     <>
-      <Row css={{ py: theme.spacing[5] }}>
+      <Row css={{ py: theme.spacing[3] }}>
         {logic.systemProps.map((item) => renderProperty(props, item))}
       </Row>
 
@@ -186,7 +209,7 @@ export const PropsSection = (props: PropsSectionProps) => {
         onAdd={() => setAddingProp(true)}
         hasItems={hasItems}
       >
-        <Flex gap="2" direction="column">
+        <Flex gap="1" direction="column">
           {addingProp && (
             <AddPropertyForm
               availableProps={logic.availableProps}
@@ -196,7 +219,12 @@ export const PropsSection = (props: PropsSectionProps) => {
               }}
             />
           )}
-          {logic.addedProps.map((item) => renderProperty(props, item, true))}
+          {logic.addedProps.map((item, index) =>
+            renderProperty(props, item, {
+              deletable: true,
+              autoFocus: index === 0,
+            })
+          )}
           {logic.initialProps.map((item) => renderProperty(props, item))}
         </Flex>
       </CollapsibleSectionWithAddButton>
@@ -212,9 +240,9 @@ export const PropsSectionContainer = ({
   const { setProperty: setCssProperty } = useStyleData({
     selectedInstance: instance,
   });
-  const { propsByInstanceId } = useStore(propsIndexStore);
+  const { propsByInstanceId } = useStore($propsIndex);
   const propValuesByInstanceSelector = useStore($propValuesByInstanceSelector);
-  const instanceSelector = useStore(selectedInstanceSelectorStore);
+  const instanceSelector = useStore($selectedInstanceSelector);
   const propValues = propValuesByInstanceSelector.get(
     JSON.stringify(instanceSelector)
   );
@@ -224,14 +252,14 @@ export const PropsSectionContainer = ({
     props: propsByInstanceId.get(instance.id) ?? [],
 
     updateProp: (update) => {
-      const { propsByInstanceId } = propsIndexStore.get();
+      const { propsByInstanceId } = $propsIndex.get();
       const instanceProps = propsByInstanceId.get(instance.id) ?? [];
       // Fixing a bug that caused some props to be duplicated on unmount by removing duplicates.
       // see for details https://github.com/webstudio-is/webstudio/pull/2170
       const duplicateProps = instanceProps
         .filter((prop) => prop.id !== update.id)
         .filter((prop) => prop.name === update.name);
-      serverSyncStore.createTransaction([propsStore], (props) => {
+      serverSyncStore.createTransaction([$props], (props) => {
         for (const prop of duplicateProps) {
           props.delete(prop.id);
         }
@@ -240,7 +268,7 @@ export const PropsSectionContainer = ({
     },
 
     deleteProp: (propId) => {
-      serverSyncStore.createTransaction([propsStore], (props) => {
+      serverSyncStore.createTransaction([$props], (props) => {
         props.delete(propId);
       });
     },

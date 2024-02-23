@@ -5,7 +5,7 @@ import {
   createImageLoader,
 } from "@webstudio-is/image";
 import { styled, theme } from "@webstudio-is/design-system";
-import { assetsStore } from "~/shared/nano-states";
+import { $assets } from "~/shared/nano-states";
 import type { StyleInfo } from "../../shared/style-info";
 import brokenImage from "~/shared/images/broken-image-placeholder.svg";
 import env from "~/shared/env";
@@ -15,6 +15,7 @@ import { toPascalCase } from "../../shared/keyword-utils";
 
 const Thumbnail = styled("div", {
   borderRadius: 2,
+  borderWidth: 0,
   width: theme.spacing[10],
   height: theme.spacing[10],
 });
@@ -85,7 +86,7 @@ export const getLayerName = (layerStyle: StyleInfo, assets: Assets) => {
 };
 
 export const LayerThumbnail = (props: { layerStyle: StyleInfo }) => {
-  const assets = useStore(assetsStore);
+  const assets = useStore($assets);
   const backgroundImageStyle = props.layerStyle.backgroundImage?.value;
 
   if (

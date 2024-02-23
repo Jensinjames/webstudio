@@ -2,8 +2,14 @@
 /* This is a auto generated file for building the project */
 
 import { Fragment, useState } from "react";
-import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
+import type {
+  Asset,
+  FontAsset,
+  ImageAsset,
+  ProjectMeta,
+} from "@webstudio-is/sdk";
+import { useResource } from "@webstudio-is/react-sdk";
+import type { PageMeta } from "@webstudio-is/react-sdk";
 import {
   Body as Body,
   Form as Form,
@@ -16,7 +22,7 @@ import {
   Heading as Heading,
 } from "@webstudio-is/sdk-components-react";
 
-export const fontAssets: Asset[] = [];
+import type { PageData } from "~/routes/_index";
 export const imageAssets: ImageAsset[] = [
   {
     id: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
@@ -52,19 +58,17 @@ export const imageAssets: ImageAsset[] = [
     meta: { width: 1024, height: 1024 },
   },
 ];
+
+// Font assets on current page (can be preloaded)
+export const pageFontAssets: FontAsset[] = [];
+
+export const pageBackgroundImageAssets: ImageAsset[] = [];
+
 export const pageData: PageData = {
   project: {
     siteName: "KittyGuardedZone",
     faviconAssetId: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
     code: "<script>console.log('KittyGuardedZone')</script>\n",
-  },
-  page: {
-    id: "U1tRJl2ERr8_OFe0g9cN_",
-    name: "form",
-    title: "form",
-    meta: { description: "" },
-    rootInstanceId: "a-4nDFkaWy4px1fn38XWJ",
-    path: "/form",
   },
 };
 export const user: { email: string | null } | undefined = {
@@ -72,28 +76,40 @@ export const user: { email: string | null } | undefined = {
 };
 export const projectId = "cddc1d44-af37-4cb6-a430-d300cf6f932d";
 
-type Params = Record<string, string | undefined>;
-type Resources = Record<string, unknown>;
-const Page = (_props: { params: Params; resources: Resources }) => {
+export const getPageMeta = ({
+  params,
+  resources,
+}: {
+  params: Record<string, undefined | string>;
+  resources: Record<string, any>;
+}): PageMeta => {
+  return {
+    title: "form",
+    description: "",
+    excludePageFromSearch: undefined,
+    socialImageAssetId: undefined,
+    socialImageUrl: undefined,
+    status: undefined,
+    redirect: undefined,
+    custom: [],
+  };
+};
+
+const Page = ({}: { params: any }) => {
   let [formState, set$formState] = useState<any>("initial");
   let [formState_1, set$formState_1] = useState<any>("initial");
-  let onStateChange = (state: any) => {
-    formState = state;
-    set$formState(formState);
-  };
-  let onStateChange_1 = (state: any) => {
-    formState_1 = state;
-    set$formState_1(formState_1);
-  };
   return (
     <Body data-ws-id="a-4nDFkaWy4px1fn38XWJ" data-ws-component="Body">
       <Form
         data-ws-id="-1RvizaBcVpHsjvnYxn1c"
         data-ws-component="Form"
-        state={formState_1}
-        onStateChange={onStateChange_1}
+        state={formState}
+        onStateChange={(state: any) => {
+          formState = state;
+          set$formState(formState);
+        }}
       >
-        {(formState_1 === "initial" || formState_1 === "error") && (
+        {(formState === "initial" || formState === "error") && (
           <Box data-ws-id="qhnVrmYGlyrMZi3UzqSQA" data-ws-component="Box">
             <Heading
               data-ws-id="YdHHf4u3jrdbRIWpB_VfH"
@@ -126,12 +142,12 @@ const Page = (_props: { params: Params; resources: Resources }) => {
             </Button>
           </Box>
         )}
-        {formState_1 === "success" && (
+        {formState === "success" && (
           <Box data-ws-id="966cjxuqP_T99N27-mqWE" data-ws-component="Box">
             {"Thank you for getting in touch!"}
           </Box>
         )}
-        {formState_1 === "error" && (
+        {formState === "error" && (
           <Box data-ws-id="SYG5hhOz31xFJUN_v9zq6" data-ws-component="Box">
             {"Sorry, something went wrong."}
           </Box>
@@ -140,12 +156,15 @@ const Page = (_props: { params: Params; resources: Resources }) => {
       <Form
         data-ws-id="isNSM3wXcnHFikwNPlEOL"
         data-ws-component="Form"
-        state={formState}
-        onStateChange={onStateChange}
+        state={formState_1}
+        onStateChange={(state: any) => {
+          formState_1 = state;
+          set$formState_1(formState_1);
+        }}
         method={"get"}
         action={"/custom"}
       >
-        {(formState === "initial" || formState === "error") && (
+        {(formState_1 === "initial" || formState_1 === "error") && (
           <Box data-ws-id="a5YPRc19IJyhTrjjasA_R" data-ws-component="Box">
             <Heading
               data-ws-id="y4pceTmziuBRIDgUBQNLD"
@@ -178,12 +197,12 @@ const Page = (_props: { params: Params; resources: Resources }) => {
             </Button>
           </Box>
         )}
-        {formState === "success" && (
+        {formState_1 === "success" && (
           <Box data-ws-id="Gw-ta0R4FNFAGBTVRWKep" data-ws-component="Box">
             {"Thank you for getting in touch!"}
           </Box>
         )}
-        {formState === "error" && (
+        {formState_1 === "error" && (
           <Box data-ws-id="ewk_WKpu4syHLPABMmvUz" data-ws-component="Box">
             {"Sorry, something went wrong."}
           </Box>
@@ -195,6 +214,7 @@ const Page = (_props: { params: Params; resources: Resources }) => {
 
 export { Page };
 
+type Params = Record<string, string | undefined>;
 export const getRemixParams = ({ ...params }: Params): Params => {
   return params;
 };
@@ -206,6 +226,7 @@ export const pagesPaths = new Set([
   "/form",
   "/heading-with-id",
   "/resources",
+  "/nested/nested-page",
 ]);
 
 export const formsProperties = new Map<

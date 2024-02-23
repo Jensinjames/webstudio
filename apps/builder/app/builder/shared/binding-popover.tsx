@@ -1,17 +1,28 @@
 import {
+  type ButtonHTMLAttributes,
+  type RefObject,
   forwardRef,
   useMemo,
   useRef,
   useState,
-  type ButtonHTMLAttributes,
+  createContext,
+  useContext,
+  type ReactNode,
 } from "react";
 import { isFeatureEnabled } from "@webstudio-is/feature-flags";
-import { DotIcon, PlusIcon, TrashIcon } from "@webstudio-is/icons";
+import {
+  DotIcon,
+  InfoCircleIcon,
+  PlusIcon,
+  ResetIcon,
+  TrashIcon,
+} from "@webstudio-is/icons";
 import {
   Box,
   Button,
   CssValueListArrowFocus,
   CssValueListItem,
+  Flex,
   FloatingPanelPopover,
   FloatingPanelPopoverClose,
   FloatingPanelPopoverContent,
@@ -21,11 +32,17 @@ import {
   Label,
   ScrollArea,
   SmallIconButton,
+  Text,
   Tooltip,
   theme,
 } from "@webstudio-is/design-system";
-import { validateExpression } from "@webstudio-is/react-sdk";
+import {
+  decodeDataSourceVariable,
+  validateExpression,
+} from "@webstudio-is/react-sdk";
 import { ExpressionEditor, formatValuePreview } from "./expression-editor";
+import { useSideOffset } from "./floating-panel";
+import { $dataSourceVariables } from "~/shared/nano-states";
 
 export const evaluateExpressionWithinScope = (
   expression: string,
@@ -97,6 +114,7 @@ const BindingPanel = ({
   const usedIdentifiers = useMemo(() => getUsedIdentifiers(value), [value]);
   const [error, setError] = useState<undefined | string>();
   const [touched, setTouched] = useState(false);
+  const scopeEntries = Object.entries(scope);
 
   const updateExpression = (newExpression: string) => {
     setExpression(newExpression);
@@ -128,9 +146,27 @@ const BindingPanel = ({
         width: theme.spacing[30],
       }}
     >
-      <Box css={{ padding: `${theme.spacing[5]} 0` }}>
+      <Box css={{ paddingBottom: theme.spacing[5] }}>
+        <Flex gap="1" css={{ px: theme.spacing[9], py: theme.spacing[5] }}>
+          <Text variant="labelsSentenceCase">Variables</Text>
+          <Tooltip
+            variant="wrapped"
+            content={
+              "Click on the available variables in this scope to insert them into the Expression Editor."
+            }
+          >
+            <InfoCircleIcon tabIndex={0} />
+          </Tooltip>
+        </Flex>
+        {scopeEntries.length === 0 && (
+          <Flex justify="center" align="center" css={{ py: theme.spacing[5] }}>
+            <Text variant="labelsSentenceCase" align="center">
+              No variables available
+            </Text>
+          </Flex>
+        )}
         <CssValueListArrowFocus>
-          {Object.entries(scope).map(([identifier, value], index) => {
+          {scopeEntries.map(([identifier, value], index) => {
             const name = aliases.get(identifier);
             const label =
               value === undefined
@@ -154,6 +190,23 @@ const BindingPanel = ({
           })}
         </CssValueListArrowFocus>
       </Box>
+      <Flex gap="1" css={{ px: theme.spacing[9], py: theme.spacing[5] }}>
+        <Text variant="labelsSentenceCase">Expression Editor</Text>
+        <Tooltip
+          variant="wrapped"
+          content={
+            <Text>
+              Use JavaScript syntax to access variables along with comparison
+              and arithmetic operators.
+              <br />
+              Use the dot notation to access nested object values:
+              <Text variant="mono">Variable.nested.value</Text>
+            </Text>
+          }
+        >
+          <InfoCircleIcon tabIndex={0} />
+        </Tooltip>
+      </Flex>
       <Box css={{ padding: `0 ${theme.spacing[9]} ${theme.spacing[9]}` }}>
         <InputErrorsTooltip
           errors={
@@ -187,29 +240,82 @@ const BindingPanel = ({
   );
 };
 
+const bindingOpacityProperty = "--ws-binding-opacity";
+
+export const BindingControl = ({ children }: { children: ReactNode }) => {
+  return (
+    <Box
+      css={{
+        position: "relative",
+        "&:hover": { [bindingOpacityProperty]: 1 },
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
+export type BindingVariant = "default" | "bound" | "overwritten";
+
 const BindingButton = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { error?: string }
->(({ error, ...props }, ref) => {
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant: BindingVariant;
+    error?: string;
+    value: string;
+  }
+>(({ variant, error, value, ...props }, ref) => {
   const expanded = props["aria-expanded"];
+  const overwrittenMessage =
+    variant === "overwritten" ? (
+      <Flex direction="column" gap="2" css={{ maxWidth: theme.spacing[28] }}>
+        <Text>Bound variable is overwritten with temporary value</Text>
+        <Button
+          color="dark"
+          prefix={<ResetIcon />}
+          css={{ flexGrow: 1 }}
+          onClick={() => {
+            const potentialVariableId = decodeDataSourceVariable(value);
+            const dataSourceVariables = new Map($dataSourceVariables.get());
+            if (potentialVariableId !== undefined) {
+              dataSourceVariables.delete(potentialVariableId);
+              $dataSourceVariables.set(dataSourceVariables);
+            }
+          }}
+        >
+          Reset value
+        </Button>
+      </Flex>
+    ) : undefined;
+  const tooltipContent = error ?? overwrittenMessage;
   return (
     // prevent giving content to tooltip when popover is open
     // to avoid button remounting and popover flickering
     // when switch between valid and error value
-    <Tooltip content={expanded ? undefined : error} delayDuration={0}>
+    <Tooltip content={expanded ? undefined : tooltipContent} delayDuration={0}>
       <SmallIconButton
         ref={ref}
+        data-variant={variant}
         css={{
+          // hide by default
+          opacity: `var(${bindingOpacityProperty}, 0)`,
           position: "absolute",
           top: 0,
           left: 0,
           boxSizing: "border-box",
           padding: 2,
           transform: "translate(-50%, -50%) scale(1)",
-          transition: "transform 60ms",
+          transition: "transform 60ms, opacity 0ms 60ms",
+          // https://easings.net/#easeInOutSine
+          transitionTimingFunction: "cubic-bezier(0.37, 0, 0.63, 1)",
           "--dot-display": "block",
           "--plus-display": "none",
-          "&:hover, &[aria-expanded=true]": {
+          "&[data-variant=bound], &[data-variant=overwritten]": {
+            opacity: 1,
+          },
+          "&:hover, &:focus-visible, &[aria-expanded=true]": {
+            // always show when interacted with
+            opacity: 1,
             transform: `translate(-50%, -50%) scale(1.5)`,
             "--dot-display": "none",
             "--plus-display": "block",
@@ -222,15 +328,21 @@ const BindingButton = forwardRef<
               width: 12,
               height: 12,
               borderRadius: "50%",
-              backgroundColor: "#834DF4",
+              backgroundColor: theme.colors.backgroundStyleSourceToken,
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
+              "&[data-variant=bound]": {
+                backgroundColor: theme.colors.backgroundStyleSourceLocal,
+              },
+              "&[data-variant=overwritten]": {
+                backgroundColor: theme.colors.borderOverwrittenMain,
+              },
               "&[data-variant=error]": {
                 backgroundColor: theme.colors.backgroundDestructiveMain,
               },
             }}
-            data-variant={error ? "error" : "default"}
+            data-variant={error ? "error" : variant}
           >
             <DotIcon
               size={14}
@@ -250,9 +362,17 @@ const BindingButton = forwardRef<
 });
 BindingButton.displayName = "BindingButton";
 
+const BindingPopoverContext = createContext<{
+  containerRef?: RefObject<HTMLElement>;
+  side?: "left" | "right";
+}>({});
+
+export const BindingPopoverProvider = BindingPopoverContext.Provider;
+
 export const BindingPopover = ({
   scope,
   aliases,
+  variant,
   validate,
   value,
   onChange,
@@ -260,12 +380,19 @@ export const BindingPopover = ({
 }: {
   scope: Record<string, unknown>;
   aliases: Map<string, string>;
+  variant: BindingVariant;
   validate?: (value: unknown) => undefined | string;
   value: string;
   onChange: (newValue: string) => void;
   onRemove: (evaluatedValue: unknown) => void;
 }) => {
-  const [open, onOpenChange] = useState(false);
+  const { side = "left", containerRef } = useContext(BindingPopoverContext);
+  const [isOpen, onOpenChange] = useState(false);
+  const [triggerRef, sideOffset] = useSideOffset({
+    side,
+    isOpen,
+    containerRef,
+  });
   const hasUnsavedChange = useRef<boolean>(false);
   const preventedClosing = useRef<boolean>(false);
 
@@ -276,7 +403,7 @@ export const BindingPopover = ({
   return (
     <FloatingPanelPopover
       modal
-      open={open}
+      open={isOpen}
       onOpenChange={(newOpen) => {
         // handle special case for popover close
         if (newOpen === false) {
@@ -291,10 +418,14 @@ export const BindingPopover = ({
         onOpenChange(newOpen);
       }}
     >
-      <FloatingPanelPopoverTrigger asChild>
-        <BindingButton error={valueError} />
+      <FloatingPanelPopoverTrigger asChild ref={triggerRef}>
+        <BindingButton variant={variant} error={valueError} value={value} />
       </FloatingPanelPopoverTrigger>
-      <FloatingPanelPopoverContent side="top" align="start">
+      <FloatingPanelPopoverContent
+        sideOffset={sideOffset}
+        side={side}
+        align="start"
+      >
         <BindingPanel
           scope={scope}
           aliases={aliases}
@@ -331,6 +462,7 @@ export const BindingPopover = ({
                   aria-label="Reset binding"
                   prefix={<TrashIcon />}
                   color="ghost"
+                  disabled={variant === "default"}
                   onClick={(event) => {
                     event.preventDefault();
                     // inline variables and close dialog

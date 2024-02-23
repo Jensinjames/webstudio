@@ -22,7 +22,7 @@ import {
   SubtractIcon,
   PlusIcon,
 } from "@webstudio-is/icons";
-import { assetsStore } from "~/shared/nano-states";
+import { $assets } from "~/shared/nano-states";
 import { PropertyName } from "../../shared/property-name";
 import type { StyleInfo } from "../../shared/style-info";
 import { ColorControl } from "../../controls/color/color-control";
@@ -60,7 +60,7 @@ const Layer = (props: {
   deleteLayer: () => void;
   setBackgroundColor: (color: RgbValue) => void;
 }) => {
-  const assets = useStore(assetsStore);
+  const assets = useStore($assets);
 
   const backgrounImageStyle = props.layerStyle.backgroundImage?.value;
   const isHidden =
@@ -99,6 +99,7 @@ const Layer = (props: {
     >
       <CssValueListItem
         id={props.id}
+        draggable={true}
         active={props.isHighlighted}
         index={props.index}
         label={
@@ -229,7 +230,7 @@ export const BackgroundsSection = (props: RenderCategoryProps) => {
     >
       <Flex gap={1} direction="column">
         <CssValueListArrowFocus dragItemId={dragItemId}>
-          <Flex gap={1} direction="column" ref={sortableRefCallback}>
+          <Flex direction="column" ref={sortableRefCallback}>
             {sortableItems.map((layer, index) => (
               <Layer
                 id={layer.id}

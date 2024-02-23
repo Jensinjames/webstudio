@@ -2,12 +2,18 @@
 /* This is a auto generated file for building the project */
 
 import { Fragment, useState } from "react";
-import type { PageData } from "~/routes/_index";
-import type { Asset, ImageAsset, ProjectMeta } from "@webstudio-is/sdk";
+import type {
+  Asset,
+  FontAsset,
+  ImageAsset,
+  ProjectMeta,
+} from "@webstudio-is/sdk";
+import { useResource } from "@webstudio-is/react-sdk";
+import type { PageMeta } from "@webstudio-is/react-sdk";
 import { Body as Body } from "@webstudio-is/sdk-components-react-remix";
 import { Image as Image } from "@webstudio-is/sdk-components-react";
 
-export const fontAssets: Asset[] = [];
+import type { PageData } from "~/routes/_index";
 export const imageAssets: ImageAsset[] = [
   {
     id: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
@@ -43,19 +49,17 @@ export const imageAssets: ImageAsset[] = [
     meta: { width: 1024, height: 1024 },
   },
 ];
+
+// Font assets on current page (can be preloaded)
+export const pageFontAssets: FontAsset[] = [];
+
+export const pageBackgroundImageAssets: ImageAsset[] = [];
+
 export const pageData: PageData = {
   project: {
     siteName: "KittyGuardedZone",
     faviconAssetId: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
     code: "<script>console.log('KittyGuardedZone')</script>\n",
-  },
-  page: {
-    id: "szYLvBduHPmbtqQKCDY0b",
-    name: "RouteWithSymbols",
-    title: "RouteWithSymbols",
-    meta: { description: "" },
-    rootInstanceId: "EDEfpMPRqDejthtwkH7ws",
-    path: "/_route_with_symbols_",
   },
 };
 export const user: { email: string | null } | undefined = {
@@ -63,15 +67,33 @@ export const user: { email: string | null } | undefined = {
 };
 export const projectId = "cddc1d44-af37-4cb6-a430-d300cf6f932d";
 
-type Params = Record<string, string | undefined>;
-type Resources = Record<string, unknown>;
-const Page = (_props: { params: Params; resources: Resources }) => {
+export const getPageMeta = ({
+  params,
+  resources,
+}: {
+  params: Record<string, undefined | string>;
+  resources: Record<string, any>;
+}): PageMeta => {
+  return {
+    title: "RouteWithSymbols",
+    description: "",
+    excludePageFromSearch: undefined,
+    socialImageAssetId: undefined,
+    socialImageUrl: undefined,
+    status: undefined,
+    redirect: undefined,
+    custom: [],
+  };
+};
+
+const Page = ({}: { params: any }) => {
   return (
     <Body data-ws-id="EDEfpMPRqDejthtwkH7ws" data-ws-component="Body">
       <Image
         data-ws-id="AdXSAYCx4QDo5QN6nLoGs"
         data-ws-component="Image"
         src={"/assets/small-avif-kitty_FnabJsioMWpBtXZSGf4DR.webp"}
+        className="c1arp7pb"
       />
     </Body>
   );
@@ -79,6 +101,7 @@ const Page = (_props: { params: Params; resources: Resources }) => {
 
 export { Page };
 
+type Params = Record<string, string | undefined>;
 export const getRemixParams = ({ ...params }: Params): Params => {
   return params;
 };
@@ -90,6 +113,7 @@ export const pagesPaths = new Set([
   "/form",
   "/heading-with-id",
   "/resources",
+  "/nested/nested-page",
 ]);
 
 export const formsProperties = new Map<

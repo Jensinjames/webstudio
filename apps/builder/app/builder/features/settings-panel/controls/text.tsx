@@ -1,5 +1,9 @@
 import { useStore } from "@nanostores/react";
-import { Flex, theme, useId, TextArea } from "@webstudio-is/design-system";
+import { useId, TextArea } from "@webstudio-is/design-system";
+import {
+  BindingControl,
+  BindingPopover,
+} from "~/builder/shared/binding-popover";
 import {
   type ControlProps,
   getLabel,
@@ -9,8 +13,9 @@ import {
   Label,
   updateExpressionValue,
   $selectedInstanceScope,
+  useBindingState,
 } from "../shared";
-import { BindingPopover } from "~/builder/shared/binding-popover";
+import { useEffect, useRef } from "react";
 
 export const TextControl = ({
   meta,
@@ -18,7 +23,7 @@ export const TextControl = ({
   propName,
   deletable,
   computedValue,
-  readOnly,
+  autoFocus,
   onChange,
   onDelete,
 }: ControlProps<"text">) => {
@@ -31,18 +36,29 @@ export const TextControl = ({
   });
   const id = useId();
   const label = getLabel(meta, propName);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const rows = meta.rows ?? 1;
   const isTwoColumnLayout = rows < 2;
 
   const { scope, aliases } = useStore($selectedInstanceScope);
   const expression =
     prop?.type === "expression" ? prop.value : JSON.stringify(computedValue);
+  const { overwritable, variant } = useBindingState(
+    prop?.type === "expression" ? prop.value : undefined
+  );
+
+  useEffect(() => {
+    if (autoFocus) {
+      textAreaRef.current?.focus();
+    }
+  }, [autoFocus]);
 
   const input = (
-    <>
+    <BindingControl>
       <TextArea
+        ref={textAreaRef}
         id={id}
-        disabled={readOnly}
+        disabled={overwritable === false}
         autoGrow
         value={localValue.value}
         rows={meta.rows ?? 1}
@@ -60,6 +76,7 @@ export const TextControl = ({
             return `${label} expects a string value`;
           }
         }}
+        variant={variant}
         value={expression}
         onChange={(newExpression) =>
           onChange({ type: "expression", value: newExpression })
@@ -68,11 +85,15 @@ export const TextControl = ({
           onChange({ type: "string", value: String(evaluatedValue) })
         }
       />
-    </>
+    </BindingControl>
   );
 
   const labelElement = (
-    <Label htmlFor={id} description={meta.description} readOnly={readOnly}>
+    <Label
+      htmlFor={id}
+      description={meta.description}
+      readOnly={overwritable === false}
+    >
       {label}
     </Label>
   );
@@ -84,7 +105,7 @@ export const TextControl = ({
         deletable={deletable}
         onDelete={onDelete}
       >
-        <Flex css={{ position: "relative" }}>{input}</Flex>
+        {input}
       </ResponsiveLayout>
     );
   }
@@ -95,7 +116,7 @@ export const TextControl = ({
       deletable={deletable}
       onDelete={onDelete}
     >
-      <Flex css={{ py: theme.spacing[2], position: "relative" }}>{input}</Flex>
+      {input}
     </VerticalLayout>
   );
 };
