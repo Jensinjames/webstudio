@@ -4,7 +4,6 @@ import { usePress } from "@react-aria/interactions";
 import {
   type WsComponentMeta,
   componentCategories,
-  collectionComponent,
 } from "@webstudio-is/react-sdk";
 import {
   theme,
@@ -27,7 +26,6 @@ import { MetaIcon } from "~/builder/shared/meta-icon";
 import { $registeredComponentMetas } from "~/shared/nano-states";
 import { getMetaMaps } from "./get-meta-maps";
 import { getInstanceLabel } from "~/shared/instance-utils";
-import { isFeatureEnabled } from "@webstudio-is/feature-flags";
 
 export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
   const metaByComponentName = useStore($registeredComponentMetas);
@@ -78,12 +76,6 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
                       (meta: WsComponentMeta, index) => {
                         const component = componentNamesByMeta.get(meta);
                         if (component === undefined) {
-                          return;
-                        }
-                        if (
-                          component === collectionComponent &&
-                          isFeatureEnabled("bindings") === false
-                        ) {
                           return;
                         }
                         return (

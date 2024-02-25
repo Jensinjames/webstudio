@@ -6,7 +6,6 @@ import {
   type ActionArgs,
   type LoaderArgs,
   json,
-  redirect,
 } from "@remix-run/server-runtime";
 import { useLoaderData } from "@remix-run/react";
 import type { ProjectMeta } from "@webstudio-is/sdk";
@@ -43,7 +42,7 @@ export const loader = async (arg: LoaderArgs) => {
       pageMeta.status === 301 || pageMeta.status === 302
         ? pageMeta.status
         : 302;
-    return redirect(pageMeta.redirect, status);
+    return Response.redirect(pageMeta.redirect, status);
   }
 
   const host =
@@ -214,18 +213,16 @@ export const links: LinksFunction = () => {
   for (const asset of pageFontAssets) {
     result.push({
       rel: "preload",
-      href: assetBaseUrl + asset.name,
+      href: `${assetBaseUrl}${asset.name}`,
       as: "font",
+      crossOrigin: "anonymous",
     });
   }
 
   for (const backgroundImageAsset of pageBackgroundImageAssets) {
     result.push({
       rel: "preload",
-      href: imageLoader({
-        src: backgroundImageAsset.name,
-        format: "raw",
-      }),
+      href: `${assetBaseUrl}${backgroundImageAsset.name}`,
       as: "image",
     });
   }
